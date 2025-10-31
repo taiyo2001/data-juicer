@@ -1,0 +1,11 @@
+# Byte-compiled Python files
+__pycache__/
+
+# Output files
+output_image*/
+output_image_info*.json
+playground/evaluation/*
+
+# model
+yoloe-11l-seg.pt
+mobileclip_blt.ts
