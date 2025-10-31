@@ -32,11 +32,24 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
 
-    # GPU不足のためto("cuda")の移行はなし（遅いので移行する）
+    # --- Colab Configuration ---
+    try:
+        import google.colab
+        is_colab = True
+        DRIVE_PATH_BASE = '/content/drive/MyDrive/workspace//huggingface_cache/'
+        cache_directory = DRIVE_PATH_BASE
+    except:
+        is_colab = False
+        cache_directory = None
+    print(f"--- is_colab: {is_colab} ---")
+    # ----------------------------
+
+    # GPU節約のためにto("cuda")の移行をなしにすると遅いので移行
     pipe = DiffusionPipeline.from_pretrained(
         args.model_path,
         # torch_dtype=torch.bfloat16,
         load_in_4bit=True,
+        cache_directory=cache_directory,
     ).to("cuda")
 
 
