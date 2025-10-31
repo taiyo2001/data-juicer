@@ -36,7 +36,7 @@ if __name__ == "__main__":
                 width=512,
                 num_inference_steps=50,
             ).images[0]
-        
+
             image_name = temp_piece["dataset_target"] + "_SD1_5_" + str(valid_image_count) + "_" + str(temp_piece["image_id"])
             image.save(os.path.join(args.image_output_dir, image_name))
 
@@ -52,4 +52,3 @@ if __name__ == "__main__":
 
     with open(args.output_json, "a") as f:
         json.dump(new_data, f)
-    
