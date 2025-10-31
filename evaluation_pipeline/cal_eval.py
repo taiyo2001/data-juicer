@@ -25,7 +25,7 @@ if __name__ == "__main__":
     character_locations_success_count = 0
     scene_attrbutes_all_count = {"background":0, "light":0, "style":0, "spatial":0}
     scene_attrbutes_success_count = {"background":0, "light":0, "style":0, "spatial":0}
-    
+
     for temp_name in file_name:
         if args.name_prefix in temp_name and "overall" in temp_name:
             print(temp_name)
@@ -63,8 +63,3 @@ if __name__ == "__main__":
 
 
     print(acc)
-
-
-
-
-

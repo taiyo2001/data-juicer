@@ -18,7 +18,7 @@ def parse_args():
     parser.add_argument('--qwen2_5_vl_model_path', type=str, default="Qwen/Qwen2.5-VL-7B-Instruct")
     parser.add_argument('--yoloe_model_path', type=str, default="yoloe-11l-seg.pt")
     parser.add_argument('--blip_model_path', type=str, default="Salesforce/blip-itm-large-flickr")
-    parser.add_argument('--ann_json_path', type=str, default="./data_json.json")
+    parser.add_argument('--ann_json_path', type=str, default="./DetailMaster_Dataset/DetailMaster_Dataset.json")
     parser.add_argument('--image_folder', type=str, default="./image_folder")
     parser.add_argument('--image_info_json', type=str, default="./image_info.json")
     parser.add_argument('--output_log_dir', type=str, default="./output/")
@@ -55,6 +55,9 @@ def iou_cal(bbox1, bbox2):
 if __name__ == "__main__":
     args = parse_args()
     random_num = random.randint(1000000,9999999)
+
+    if args.output_log_dir:
+        os.makedirs(args.output_log_dir, exist_ok=True)
 
     yoloe_model = YOLOE(args.yoloe_model_path)
     blip_processor = BlipProcessor.from_pretrained(args.blip_model_path)
@@ -121,10 +124,10 @@ if __name__ == "__main__":
         for temp_character in temp_piece["character_locations"]:
             if not temp_character["main_character"] in valid_character_list:
                 valid_character_list.append(temp_character["main_character"])
-        
+
 
         for temp_image_name_id, temp_image_name in enumerate(now_prompt_image_info):
-            
+
             try:
                 now_image = Image.open(os.path.join(args.image_folder, temp_image_name))
             except:
@@ -171,7 +174,7 @@ if __name__ == "__main__":
                     valid_character_list_bbox[temp_character] = None
                     continue
 
-                
+
                 if temp_iou > 0.7:
                     if area1 > area2:
                         valid_character_list_bbox[temp_character] = yoloe_bbox
@@ -187,11 +190,11 @@ if __name__ == "__main__":
                         valid_character_list_bbox[temp_character] = None
                         continue
                     cosine_score = blip_model(pixel_values=blip_process_input['pixel_values'], input_ids=blip_process_input['input_ids'], attention_mask=blip_process_input['attention_mask'], use_itm_head=False).itm_score
-                    
+
                     # if cosine_score[0] < 0.4 and cosine_score[1] < 0.4:
                     #     valid_character_list_bbox[temp_character] = None
                     #     continue
-                    
+
                     if cosine_score[0] > cosine_score[1]:
                         valid_character_list_bbox[temp_character] = yoloe_bbox
                     else:
@@ -214,11 +217,11 @@ if __name__ == "__main__":
                     continue
                 now_character_attribute = temp_character_attributes_dict[temp_character]
                 valid_character_list_character_attributes[temp_character] = 0
-                
+
                 temp_character_attributes_detail_score_json = {}
                 temp_character_attributes_detail_score_json["main_character"] = temp_character
                 temp_character_attributes_detail_score_json["attributes_list"] = []
-                    
+
                 if valid_character_list_bbox[temp_character] == None:
                     for temp_attribute_piece in now_character_attribute:
                         temp_character_attributes_detail_score_json["attributes_list"].append({"attribute": temp_attribute_piece, "score": 0})
@@ -244,7 +247,7 @@ if __name__ == "__main__":
                     prompt = "Please analyze the main character in this image, specifically the \"" + temp_character + "\". Please determine whether \"" + temp_attribute_piece + "\" is one of its characteristics or is associated with it. Please only respond with 'yes' or 'no'."
                     output_text = pipe((prompt, crop_img))
                     output_text = output_text.text
-                    
+
                     if 'yes' in output_text.lower():
                         valid_character_list_character_attributes[temp_character] += 1
                         temp_character_attributes_detail_score_json["attributes_list"].append({"attribute": temp_attribute_piece, "score": 1})
@@ -265,7 +268,7 @@ if __name__ == "__main__":
                 if not temp_character in temp_character_locations_dict:
                     continue
                 valid_character_temp_character_locations[temp_character] = 0
-                
+
                 if valid_character_list_bbox[temp_character] == None:
                     continue
 
@@ -284,7 +287,7 @@ if __name__ == "__main__":
                 prompt = "Analyze whether the character \"" + temp_character + "\" (marked with a red bounding box at coordinates " + str(norm_bbox) + ") is located in " + temp_character_locations_dict[temp_character].lower() + ". Please only respond with 'yes' or 'no'."
                 output_text = pipe((prompt, bbox_img))
                 output_text = output_text.text
-                
+
                 if 'yes' in output_text.lower():
                     valid_character_temp_character_locations[temp_character] = 1
 
@@ -341,7 +344,7 @@ if __name__ == "__main__":
 
             for temp_character in valid_character_list_character_attributes:
                 if not temp_character_cls_dict[temp_character] in character_attributes_success_count:
-                    character_attributes_success_count[temp_character_cls_dict[temp_character]] = 0   
+                    character_attributes_success_count[temp_character_cls_dict[temp_character]] = 0
                 character_attributes_success_count[temp_character_cls_dict[temp_character]] += valid_character_list_character_attributes[temp_character]
 
                 if not temp_character_cls_dict[temp_character] in temp_image_state["character_attribute_success"]:
@@ -370,7 +373,7 @@ if __name__ == "__main__":
                 character_locations_multi_image_success_count[temp_image_name_id] += valid_character_temp_character_locations[temp_character]
                 temp_image_state["character_location_success"] += valid_character_temp_character_locations[temp_character]
 
-            
+
             # scene attributes
             temp_image_state["scene_attributes_all"] = {"background":0, "light":0, "style":0, "spatial":0}
             temp_image_state["scene_attributes_success"] = {"background":0, "light":0, "style":0, "spatial":0}
@@ -387,12 +390,12 @@ if __name__ == "__main__":
                         scene_attrbutes_multi_image_all_count[temp_scene_attribute["scene_attribute"]][temp_image_name_id] = 0
                         scene_attrbutes_multi_image_success_count[temp_scene_attribute["scene_attribute"]][temp_image_name_id] = 0
                     scene_attrbutes_multi_image_all_count[temp_scene_attribute["scene_attribute"]][temp_image_name_id] += 1
-                    
+
                     if 'yes' in output_text.lower():
                         scene_attrbutes_success_count[temp_scene_attribute["scene_attribute"]] += 1
                         scene_attrbutes_multi_image_success_count[temp_scene_attribute["scene_attribute"]][temp_image_name_id] += 1
                         temp_image_state["scene_attributes_success"][temp_scene_attribute["scene_attribute"]] += 1
-                
+
                 else:
                     for temp_spatial in temp_scene_attribute["content"]:
                         bbox_img = now_image.copy()
@@ -410,8 +413,8 @@ if __name__ == "__main__":
                             if not add_character_str == "":
                                 add_character_str += ", "
                             add_character_str += "\"" + temp_contain_character + "\""
-                            
-                        
+
+
                         if add_character_str == "":
                             output_text = "no"
                         else:
@@ -430,7 +433,7 @@ if __name__ == "__main__":
                             scene_attrbutes_success_count["spatial"] += 1
                             scene_attrbutes_multi_image_success_count["spatial"][temp_image_name_id] += 1
                             temp_image_state["scene_attributes_success"]["spatial"] += 1
-                
+
             new_keep_image_state.append(temp_image_state)
 
 
@@ -449,7 +452,7 @@ if __name__ == "__main__":
 
         print(scene_attrbutes_all_count)
         print(scene_attrbutes_success_count)
-        
+
 
     overall_json = {}
     overall_json["object_presence_all_count"] = object_presence_all_count
