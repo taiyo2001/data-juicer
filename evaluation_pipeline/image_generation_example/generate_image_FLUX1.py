@@ -36,7 +36,7 @@ if __name__ == "__main__":
     try:
         import google.colab
         is_colab = True
-        DRIVE_PATH_BASE = '/content/drive/MyDrive/workspace//huggingface_cache/'
+        DRIVE_PATH_BASE = '/content/drive/MyDrive/workspace/huggingface_cache/'
         cache_directory = DRIVE_PATH_BASE
     except:
         is_colab = False

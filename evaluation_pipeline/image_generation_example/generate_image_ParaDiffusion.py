@@ -23,8 +23,8 @@ from ParaDiffusion.demo import get_pipe
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_path', type=str, default="stable-diffusion-v1-5")
-    parser.add_argument('--model_name', type=str, default="SD1_5")
+    parser.add_argument('--model_path', type=str, default=None)
+    parser.add_argument('--model_name', type=str, default="ParaDiffusion")
     parser.add_argument('--prompt_path', type=str, default="./DetailMaster_Dataset/DetailMaster_Dataset.json")
     parser.add_argument('--output_json', type=str, default="./output.json")
     parser.add_argument('--image_output_dir', type=str, default="./output_image/")
@@ -32,9 +32,6 @@ def parse_args():
     parser.add_argument('--icl_prompt', type=str, default=None)
 
     args = parser.parse_args()
-
-    # if args.icl_prompt and args.icl_num:
-    #     args.model_name = f"{args.model_name}_ICL{args.icl_num}"
 
     args.output_json = f"./evaluation_pipeline/image_generation_example/output_image_info_{args.model_name}.json"
     args.image_output_dir = f"./evaluation_pipeline/image_generation_example/output_image_{args.model_name}/"
