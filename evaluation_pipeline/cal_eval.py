@@ -16,6 +16,7 @@ if __name__ == "__main__":
     args = parse_args()
     dir_name = args.eval_output_log_dir_name
     file_name = os.listdir(dir_name)
+    overall_eval_file_name = ""
 
     object_presence_all_count = 0
     object_presence_success_count = 0
@@ -29,6 +30,7 @@ if __name__ == "__main__":
     for temp_name in file_name:
         if args.name_prefix in temp_name and "overall" in temp_name:
             print(temp_name)
+            overall_eval_file_name = temp_name
             with open(os.path.join(dir_name, temp_name), "r") as f:
                 temp_json = json.load(f)
                 object_presence_all_count += temp_json["object_presence_all_count"]
@@ -63,3 +65,13 @@ if __name__ == "__main__":
 
 
     print(acc)
+
+    output_file_name = overall_eval_file_name.replace("_overall_eval.json", "_final_score.json")
+    output_filepath = os.path.join(dir_name, output_file_name)
+
+    with open(output_filepath, "w") as f:
+        json.dump(acc, f, indent=4)
+
+    print("-" * 30)
+    print(f"✅ 最終結果が保存されました: {output_filepath}")
+    print("-" * 30)

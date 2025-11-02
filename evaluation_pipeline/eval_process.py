@@ -62,7 +62,7 @@ if __name__ == "__main__":
     yoloe_model = YOLOE(args.yoloe_model_path)
     blip_processor = BlipProcessor.from_pretrained(args.blip_model_path)
     blip_model = BlipForImageTextRetrieval.from_pretrained(
-        args.blip_model_path, torch_dtype=torch.float16, device_map="auto"
+        args.blip_model_path, dtype=torch.float16, device_map="auto"
     )
     pipe = pipeline(args.qwen2_5_vl_model_path, backend_config=TurbomindEngineConfig(cache_max_entry_count=0.1))
 
