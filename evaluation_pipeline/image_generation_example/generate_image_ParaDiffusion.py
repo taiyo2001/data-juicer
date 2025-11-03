@@ -14,7 +14,6 @@ SCHEDULER_PATH = os.path.join(PROJECT_ROOT, "ParaDiffusion/weights/scheduler")
 PEFT_MODEL_PATH = os.path.join(PROJECT_ROOT, "ParaDiffusion/weights/text_encoder_lora")
 # --------------------------------
 
-import torch
 import json
 import tqdm
 import argparse
@@ -42,6 +41,10 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
 
+    long_prompt = False
+    if args.model_name.endswith("_L"):
+        long_prompt = True
+
     pipeconfig = {
         "text_encoder_id": LLAMA_MODEL_PATH,
         "tokenizer_id": LLAMA_MODEL_PATH,
@@ -50,7 +53,8 @@ if __name__ == "__main__":
         "unet_id": UNET_PATH,
         "peft_model_id": PEFT_MODEL_PATH,
         # no run half for llama2-7b, OOM error on 24GB GPU(Titan RTX)
-        "half": True
+        "half": True,
+        "long_prompt": long_prompt
     }
     pipe = get_pipe(**pipeconfig)
 
