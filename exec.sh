@@ -17,29 +17,33 @@ if [ -n "$ICL_NUM" ] && [ -n "$ICL_PROMPT" ]; then
 fi
 echo "FINAL MODEL_NAME: $MODEL_NAME"
 
+# model name L: max 768 tokens
+
+
 # ----------------------------------
 # 1. Generate images
 # ----------------------------------
 
-# ------ SD1.5 ------
+# ------ SD1.5(77 tokens) ------
 MODEL_NAME=SD1_5
 
 # INFO: 'conda activate DetailMaster' is required before.
-CUDA_VISIBLE_DEVICES=0 python evaluation_pipeline/image_generation_example/generate_image_sd1_5.py \
+CUDA_VISIBLE_DEVICES=1 python evaluation_pipeline/image_generation_example/generate_image_sd1_5.py \
 --model_name $MODEL_NAME \
 --icl_num $ICL_NUM \
 --icl_prompt $ICL_PROMPT
 
-# ------ ParaDiffusion ------
+# ------ ParaDiffusion(256 tokens) ------
 MODEL_NAME=ParaDiffusion
+MODEL_NAME=ParaDiffusion_L  # long prompt version(768 tokens)
 
-# INFO: 'conda activate $MODEL_NAME' is required before.
-CUDA_VISIBLE_DEVICES=1 python evaluation_pipeline/image_generation_example/generate_image_ParaDiffusion.py \
+# INFO: 'conda activate ParaDiffusion' is required before.
+CUDA_VISIBLE_DEVICES=0 python evaluation_pipeline/image_generation_example/generate_image_ParaDiffusion.py \
 --model_name $MODEL_NAME \
 --icl_num $ICL_NUM \
 --icl_prompt $ICL_PROMPT
 
-# ------ FLUX ------
+# ------ FLUX(512 tokens) ------
 MODEL_NAME=FLUX1-dev
 MODEL_NAME=FLUX1-schnell
 
@@ -48,7 +52,6 @@ CUDA_VISIBLE_DEVICES=1 python evaluation_pipeline/image_generation_example/gener
 --model_name $MODEL_NAME \
 --icl_num $ICL_NUM \
 --icl_prompt $ICL_PROMPT
-
 
 # ------ LongAlign ------
 
@@ -71,6 +74,13 @@ python evaluation_pipeline/cal_eval.py \
 --eval_output_log_dir_name ./playground/evaluation/$MODEL_NAME \
 --name_prefix $MODEL_NAME
 
-python playground/display_generation_result.py \
---eval_output_log_dir_name ./playground/evaluation/$MODEL_NAME \
---name_prefix $MODEL_NAME
+# ----------------------------------
+# Other: Results Visualization
+# ----------------------------------
+# Display generation image
+python playground/display_generation_image.py \
+--model_name $MODEL_NAME \
+--image_id "qual_dev_00003.jpg"
+
+# Generate evaluation comparison table
+python playground/eval_comparison_generator.py
