@@ -1,6 +1,21 @@
 import os
+import sys
+
+# --- Dynamic Path Configuration ---
+current_dir = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(current_dir, "../../.."))
+print(f"Project Root Directory: {PROJECT_ROOT}")
+sys.path.append(PROJECT_ROOT)
+# GGUF_DEV_MODEL_PATH = os.path.join(PROJECT_ROOT, "data-juicer/models/flux1-dev-Q8_0.gguf")
+GGUF_DEV_MODEL_PATH = os.path.join(PROJECT_ROOT, "data-juicer/models/flux1-dev-Q4_K_S.gguf")
+# GGUF_SCHNELL_MODEL_PATH = os.path.join(PROJECT_ROOT, "data-juicer/models/flux1-schnell-Q8_0.gguf")
+GGUF_SCHNELL_MODEL_PATH = os.path.join(PROJECT_ROOT, "data-juicer/models/flux1-schnell-Q4_K_S.gguf")
+
+GGUF_MODEL_PATH = None
+# --------------------------------
+
 import torch
-from diffusers import DiffusionPipeline
+from diffusers import DiffusionPipeline, FluxPipeline, FluxTransformer2DModel, GGUFQuantizationConfig
 import json
 import tqdm
 import argparse
@@ -18,11 +33,6 @@ def parse_args():
 
     args = parser.parse_args()
 
-    if 'dev' in args.model_name:
-        args.model_path = "black-forest-labs/FLUX.1-dev"
-    elif 'schnell' in args.model_name:
-        args.model_path = "black-forest-labs/FLUX.1-schnell"
-
     args.output_json = f"./evaluation_pipeline/image_generation_example/output_image_info_{args.model_name}.json"
     args.image_output_dir = f"./evaluation_pipeline/image_generation_example/output_image_{args.model_name}/"
 
@@ -32,25 +42,46 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
 
+    if 'dev' in args.model_name:
+        args.model_path = "black-forest-labs/FLUX.1-dev"
+        GGUF_MODEL_PATH = GGUF_DEV_MODEL_PATH
+    elif 'schnell' in args.model_name:
+        args.model_path = "black-forest-labs/FLUX.1-schnell"
+        GGUF_MODEL_PATH = GGUF_SCHNELL_MODEL_PATH
+
     # --- Colab Configuration ---
     try:
         import google.colab
         is_colab = True
         DRIVE_PATH_BASE = '/content/drive/MyDrive/workspace/huggingface_cache/'
-        cache_directory = DRIVE_PATH_BASE
     except:
         is_colab = False
-        cache_directory = None
     print(f"--- is_colab: {is_colab} ---")
     # ----------------------------
 
-    # GPU節約のためにto("cuda")の移行をなしにすると遅いので移行
-    pipe = DiffusionPipeline.from_pretrained(
-        args.model_path,
-        # torch_dtype=torch.bfloat16,
-        load_in_4bit=True,
-        cache_directory=cache_directory,
-    ).to("cuda")
+    print("--- Model Name: ", args.model_name, " ---")
+    print("--- ICL Num: ", args.icl_num, " ---")
+    print("--- ICL Prompt: ", args.icl_prompt, " ---")
+
+    if is_colab:
+        pipe = DiffusionPipeline.from_pretrained(
+            args.model_path,
+            torch_dtype=torch.bfloat16,
+        ).to("cuda")
+    else:
+        transformer = FluxTransformer2DModel.from_single_file(
+            GGUF_MODEL_PATH,
+            quantization_config=GGUFQuantizationConfig(compute_dtype=torch.bfloat16),
+            torch_dtype=torch.bfloat16,
+        )
+
+        # GPU節約のためにto("cuda")の移行をなし(速度低下)
+        pipe = FluxPipeline.from_pretrained(
+            args.model_path,
+            transformer=transformer,
+            torch_dtype=torch.bfloat16,
+        )
+        # ).to("cuda")
 
 
     new_data = []
