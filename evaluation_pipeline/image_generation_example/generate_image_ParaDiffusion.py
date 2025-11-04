@@ -42,8 +42,13 @@ if __name__ == "__main__":
     args = parse_args()
 
     long_prompt = False
-    if args.model_name.endswith("_L"):
+    if "_L" in args.model_name:
         long_prompt = True
+
+    print("--- Model Name: ", args.model_name, " ---")
+    print("--- Long Prompt: ", long_prompt, " ---")
+    print("--- ICL Num: ", args.icl_num, " ---")
+    print("--- ICL Prompt: ", args.icl_prompt, " ---")
 
     pipeconfig = {
         "text_encoder_id": LLAMA_MODEL_PATH,
