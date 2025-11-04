@@ -1,10 +1,20 @@
+import os
+import sys
+
+# --- Dynamic Path Configuration ---
+current_dir = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(current_dir, "../../.."))
+print(f"Project Root Directory: {PROJECT_ROOT}")
+sys.path.append(PROJECT_ROOT)
+sys.path.append(os.path.join(PROJECT_ROOT, "sd_embed/src"))
+# --------------------------------
+
 import torch
-from diffusers import StableDiffusionPipeline
+from diffusers import DiffusionPipeline
+from sd_embed.embedding_funcs import get_weighted_text_embeddings_sd15
 import json
 import tqdm
 import argparse
-import os
-
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -27,10 +37,18 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
 
-    pipe = StableDiffusionPipeline.from_pretrained(
+    prompt_weighting = False
+    if "_EM" in args.model_name:
+        prompt_weighting = True
+
+    print("--- Model Name: ", args.model_name, " ---")
+    print("--- Prompt Weighting: ", prompt_weighting, " ---")
+    print("--- ICL Num: ", args.icl_num, " ---")
+    print("--- ICL Prompt: ", args.icl_prompt, " ---")
+
+    pipe = DiffusionPipeline.from_pretrained(
         args.model_path,
-        # torch_dtype=torch.bfloat16,
-        load_in_8bit=True,
+        dtype=torch.bfloat16,
     ).to("cuda")
 
     new_data = []
@@ -47,12 +65,25 @@ if __name__ == "__main__":
             prompt = temp_piece["polished_prompt"]
             if args.icl_prompt and args.icl_num:
                 prompt = args.icl_prompt + "\n" + prompt
-            image = pipe(
-                prompt,
-                height=512,
-                width=512,
-                num_inference_steps=50,
-            ).images[0]
+
+            if prompt_weighting:
+                (prompt_embeds, prompt_neg_embeds) = get_weighted_text_embeddings_sd15(
+                    pipe, prompt=prompt, neg_prompt=""
+                )
+                image = pipe(
+                    prompt_embeds=prompt_embeds,
+                    negative_prompt_embeds=prompt_neg_embeds,
+                    height=512,
+                    width=512,
+                    num_inference_steps=30,
+                ).images[0]
+            else:
+                image = pipe(
+                    prompt,
+                    height=512,
+                    width=512,
+                    num_inference_steps=50,
+                ).images[0]
 
             image_name = f"{temp_piece['dataset_target']}_{args.model_name}_{valid_image_count}_{temp_piece['image_id']}"
             image.save(os.path.join(args.image_output_dir, image_name))
@@ -64,8 +95,12 @@ if __name__ == "__main__":
 
             valid_image_count += 1
 
-        except:
-            continue
+        except Exception as e:
+            print(f"\n--- ERROR encountered for prompt {temp_piece['image_id']} ---")
+            print(e)
+            print("----------------------------------------------------------")
+        # except:
+        #     continue
 
     with open(args.output_json, "a") as f:
         json.dump(new_data, f)
