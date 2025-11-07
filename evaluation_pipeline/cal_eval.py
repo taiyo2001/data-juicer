@@ -2,19 +2,17 @@ import json
 import os
 import argparse
 
+DEFAULT_EVAL_OUTPUT_LOG_ROOT = "./playground/evaluation"
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--eval_output_log_dir_name', type=str, default="./playground/evaluation")
-    parser.add_argument('--name_prefix', type=str, default="your_model_s_name")
+    parser.add_argument('--eval_output_log_dir_name', type=str, default=None)
+    parser.add_argument('--name_prefix', type=str, default=None)
     args=parser.parse_args()
 
     return args
 
-
-if __name__ == "__main__":
-    args = parse_args()
-    dir_name = args.eval_output_log_dir_name
+def cal_eval(dir_name, name_prefix):
     file_name = os.listdir(dir_name)
     overall_eval_file_name = ""
 
@@ -28,7 +26,7 @@ if __name__ == "__main__":
     scene_attrbutes_success_count = {"background":0, "light":0, "style":0, "spatial":0}
 
     for temp_name in file_name:
-        if args.name_prefix in temp_name and "overall" in temp_name:
+        if name_prefix in temp_name and "overall" in temp_name:
             print(temp_name)
             overall_eval_file_name = temp_name
             with open(os.path.join(dir_name, temp_name), "r") as f:
@@ -69,9 +67,35 @@ if __name__ == "__main__":
     output_file_name = overall_eval_file_name.replace("_overall_eval.json", "_final_score.json")
     output_filepath = os.path.join(dir_name, output_file_name)
 
+    return acc, output_filepath
+
+
+def save_eval_result(output_filepath, acc):
     with open(output_filepath, "w") as f:
         json.dump(acc, f, indent=4)
 
     print("-" * 30)
     print(f"✅ 最終結果が保存されました: {output_filepath}")
     print("-" * 30)
+
+
+if __name__ == "__main__":
+    args = parse_args()
+
+    # 引数未指定であれば、デフォルトディレクトリ内の全フォルダを処理
+    if args.eval_output_log_dir_name is None or args.name_prefix is None:
+        log_dirs = os.listdir(DEFAULT_EVAL_OUTPUT_LOG_ROOT)
+
+        for item_name in log_dirs:
+            dir_path = os.path.join(DEFAULT_EVAL_OUTPUT_LOG_ROOT, item_name)
+
+            if os.path.isdir(dir_path):
+                dir_name = dir_path
+                name_prefix = item_name
+                acc, output_filepath = cal_eval(dir_name, name_prefix)
+                save_eval_result(output_filepath, acc)
+    else:
+        dir_name = args.eval_output_log_dir_name
+        name_prefix = args.name_prefix
+        acc, output_filepath = cal_eval(dir_name, name_prefix)
+        save_eval_result(output_filepath, acc)
