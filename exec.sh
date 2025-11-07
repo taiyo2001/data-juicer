@@ -84,4 +84,7 @@ python playground/display_generation_image.py \
 --image_id "qual_dev_00003.jpg"
 
 # Generate evaluation comparison table
-python playground/eval_comparison_generator.py
+python playground/eval_comparison_generator.py # all models
+# if you want to specify the model list, use the following command:
+python playground/eval_comparison_generator.py \
+--model_list FLUX1-schnell FLUX1-schnell_s50
