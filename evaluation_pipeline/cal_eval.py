@@ -3,6 +3,7 @@ import os
 import argparse
 
 DEFAULT_EVAL_OUTPUT_LOG_ROOT = "./playground/evaluation"
+EXCLUDED_DIRS = ['comparison_results', 'excluded_model_name']
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -27,7 +28,6 @@ def cal_eval(dir_name, name_prefix):
 
     for temp_name in file_name:
         if name_prefix in temp_name and "overall" in temp_name:
-            print(temp_name)
             overall_eval_file_name = temp_name
             with open(os.path.join(dir_name, temp_name), "r") as f:
                 temp_json = json.load(f)
@@ -89,7 +89,8 @@ if __name__ == "__main__":
         for item_name in log_dirs:
             dir_path = os.path.join(DEFAULT_EVAL_OUTPUT_LOG_ROOT, item_name)
 
-            if os.path.isdir(dir_path):
+            if os.path.isdir(dir_path) and item_name not in EXCLUDED_DIRS:
+                # print("Processing directory:", dir_path)
                 dir_name = dir_path
                 name_prefix = item_name
                 acc, output_filepath = cal_eval(dir_name, name_prefix)

@@ -7,5 +7,8 @@ output_image_info*.json
 playground/evaluation/*
 
 # model
+models/
 yoloe-11l-seg.pt
 mobileclip_blt.ts
+## colab models
+huggingface_cache/

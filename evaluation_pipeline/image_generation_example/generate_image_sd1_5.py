@@ -48,7 +48,7 @@ if __name__ == "__main__":
 
     pipe = DiffusionPipeline.from_pretrained(
         args.model_path,
-        dtype=torch.bfloat16,
+        torch_dtype=torch.bfloat16,
     ).to("cuda")
 
     new_data = []

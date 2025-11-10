@@ -45,9 +45,11 @@ if __name__ == "__main__":
     if 'dev' in args.model_name:
         args.model_path = "black-forest-labs/FLUX.1-dev"
         GGUF_MODEL_PATH = GGUF_DEV_MODEL_PATH
+        num_inference_steps = 50
     elif 'schnell' in args.model_name:
         args.model_path = "black-forest-labs/FLUX.1-schnell"
         GGUF_MODEL_PATH = GGUF_SCHNELL_MODEL_PATH
+        num_inference_steps = 4
 
     # --- Colab Configuration ---
     try:
@@ -104,7 +106,8 @@ if __name__ == "__main__":
                 prompt,
                 height=512,
                 width=512,
-                num_inference_steps=50,
+                num_inference_steps=num_inference_steps, # schnell: 4, dev: 50
+                max_sequence_length=512
             ).images[0]
 
             image_name = f"{temp_piece['dataset_target']}_{args.model_name}_{valid_image_count}_{temp_piece['image_id']}"
