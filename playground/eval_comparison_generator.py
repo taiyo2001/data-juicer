@@ -16,16 +16,22 @@ COMPARISON_RESULT_ROOT = os.path.join(PROJECT_ROOT, "data-juicer/playground/eval
 # --------------------------------
 
 MODELS_TO_COMPARE = [
-    {"base_model": "FLUX1-schnell", "icl_num": 1},
-    {"base_model": "FLUX1-schnell", "icl_num": 2},
-    {"base_model": "ParaDiffusion", "icl_num": 1},
-    {"base_model": "ParaDiffusion", "icl_num": 2},
-    {"base_model": "ParaDiffusion_L", "icl_num": 1},
-    {"base_model": "ParaDiffusion_L", "icl_num": 2},
-    {"base_model": "SD1_5", "icl_num": 1},
-    {"base_model": "SD1_5", "icl_num": 2},
-    {"base_model": "SD1_5_EM", "icl_num": 1},
-    {"base_model": "SD1_5_EM", "icl_num": 2},
+    # --- Other ---
+    # --- FLUX ---
+    {"base_model": "FLUX1-schnell", "comparison_model": "FLUX1-schnell_s50"},
+    {"base_model": "FLUX1-schnell", "comparison_model": "FLUX1-schnell_ICL1"},
+    {"base_model": "FLUX1-schnell", "comparison_model": "FLUX1-schnell_ICL2"},
+    # --- SD1.5 ---
+    {"base_model": "SD1_5", "comparison_model": "SD1_5_ICL1"},
+    {"base_model": "SD1_5", "comparison_model": "SD1_5_ICL2"},
+    {"base_model": "SD1_5_EM", "comparison_model": "SD1_5_EM_ICL1"},
+    {"base_model": "SD1_5_EM", "comparison_model": "SD1_5_EM_ICL2"},
+    {"base_model": "SD1_5_EM", "comparison_model": "SD1_5_EM_NP1"},
+    # --- ParaDiffusion ---
+    {"base_model": "ParaDiffusion", "comparison_model": "ParaDiffusion_ICL1"},
+    {"base_model": "ParaDiffusion", "comparison_model": "ParaDiffusion_ICL2"},
+    {"base_model": "ParaDiffusion_L", "comparison_model": "ParaDiffusion_L_ICL1"},
+    {"base_model": "ParaDiffusion_L", "comparison_model": "ParaDiffusion_L_ICL2"},
 ]
 
 def parse_args():
@@ -70,7 +76,8 @@ def save_table_as_image(df, model_1, model_2):
 
     col_name_1_score = f'{model_1} Score'
     col_name_2_score = f'{model_2} Score'
-    change_col_name = 'Percent Change'
+    # change_col_name = 'Percent Change'
+    change_col_name = 'Absolute Diff'
 
     png_filepath = filepath.replace(".csv", ".png")
 
@@ -85,9 +92,9 @@ def save_table_as_image(df, model_1, model_2):
 
     df_display[col_name_1_score] = (df_display[model_1] * 100).round(2).astype(str) + '%'
     df_display[col_name_2_score] = (df_display[model_2] * 100).round(2).astype(str) + '%'
-    df_display['Change'] = df_display.apply(format_pct_diff, axis=1)
+    df_display['Diff'] = df_display.apply(format_pct_diff, axis=1)
 
-    df_final = df_display[[col_name_1_score, col_name_2_score, 'Change']]
+    df_final = df_display[[col_name_1_score, col_name_2_score, 'Diff']]
 
     num_rows = len(df_final) + 1
     fig_height = max(3.0, num_rows * 1.0)
@@ -141,7 +148,8 @@ def format_output_table(df, model_names):
     model_1 = model_names[0]
     model_2 = model_names[1]
 
-    header = f"{'Metric':<30} | {model_1 + ' (%)':>15} | {model_2 + ' (%)':>15} | {'Change (%)':>10} | {'Sign':>5}"
+    # header = f"{'Metric':<30} | {model_1 + ' (%)':>15} | {model_2 + ' (%)':>15} | {'Change (%)':>10} | {'Sign':>5}"
+    header = f"{'Metric':<30} | {model_1 + ' (%)':>15} | {model_2 + ' (%)':>15} | {'Diff (%)':>10} | {'Sign':>5}"
     output_lines = ["=" * len(header), header, "=" * len(header)]
 
     # データ行
@@ -150,7 +158,8 @@ def format_output_table(df, model_names):
         model_2_pct = f"{row[model_2] * 100:.2f}%"
 
         # 変化率と符号
-        change_pct = row['Percent Change'] * 100
+        # change_pct = row['Percent Change'] * 100
+        change_pct = row['Absolute Diff'] * 100
         sign = ' '
 
         if change_pct > 0.001:
@@ -229,38 +238,37 @@ if __name__ == "__main__":
         for model_info in MODELS_TO_COMPARE:
             # 1. モデル特定
             base_name = str(model_info['base_model'])
-            icl_num = str(model_info['icl_num'])
+            comparison_name = str(model_info['comparison_model'])
 
             base_dir = os.path.join(EVALUATION_ROOT, base_name)
-            icl_name = f"{base_name}_ICL{icl_num}"
-            icl_dir = os.path.join(EVALUATION_ROOT, icl_name)
+            comparison_dir = os.path.join(EVALUATION_ROOT, comparison_name)
 
             base_file = find_final_score_file(base_dir)
-            icl_file = find_final_score_file(icl_dir)
+            comparison_file = find_final_score_file(comparison_dir)
 
             print("\n" + "#" * 50)
-            print(f"## ⚙️ 比較対象: {base_name} (Base) vs {icl_name}")
+            print(f"## ⚙️ 比較対象: {base_name} (Base) vs {comparison_name}")
             print("#" * 50)
 
-            if not base_file or not icl_file:
+            if not base_file or not comparison_file:
                 print(f"➡️ スキップ: 必要な評価ファイルが見つかりません。")
                 if not base_file:
                     print(f"   [{base_name}]: {base_dir} 内にファイルが見つかりません。")
-                if not icl_file:
-                    print(f"   [{icl_name}]: {icl_dir} 内にファイルが見つかりません。")
+                if not comparison_file:
+                    print(f"   [{comparison_name}]: {comparison_dir} 内にファイルが見つかりません。")
                 continue
 
 
             # 2. データのロード
             data_base = load_score(base_file)
-            data_icl = load_score(icl_file)
+            data_comparison = load_score(comparison_file)
 
-            if not data_base or not data_icl:
+            if not data_base or not data_comparison:
                 continue
 
             df = pd.DataFrame({
                 base_name: data_base,
-                icl_name: data_icl
+                comparison_name: data_comparison
             })
 
             # インデックス名の整形
@@ -268,15 +276,15 @@ if __name__ == "__main__":
             df = df.round(4)
 
             # 差分と変化率の計算
-            df['Absolute Diff'] = df[icl_name] - df[base_name]
+            df['Absolute Diff'] = df[comparison_name] - df[base_name]
             df['Percent Change'] = df['Absolute Diff'] / \
                 df[base_name].replace(0, 1e-6)
 
 
             # 3. 結果出力・画像保存
-            print(f"\n📈 {icl_name} と {base_name} の比較結果:")
-            model_names = [base_name, icl_name]
+            print(f"\n📈 {comparison_name} と {base_name} の比較結果:")
+            model_names = [base_name, comparison_name]
             print(format_output_table(df, model_names))
 
-            saved_path = save_table_as_image(df, base_name, icl_name)
+            saved_path = save_table_as_image(df, base_name, comparison_name)
             print(f"\n🖼️ 比較結果の画像を保存しました: {saved_path}")

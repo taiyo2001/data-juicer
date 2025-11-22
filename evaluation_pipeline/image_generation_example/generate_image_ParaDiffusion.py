@@ -47,7 +47,7 @@ def parse_args():
 
     if args.count is not None:
         args.model_name = args.model_name + f"_{args.count}"
-c
+
     args.output_json = f"./evaluation_pipeline/image_generation_example/output_image_info_{args.model_name}.json"
     args.image_output_dir = f"./evaluation_pipeline/image_generation_example/output_image_{args.model_name}/"
 

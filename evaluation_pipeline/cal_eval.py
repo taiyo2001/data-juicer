@@ -17,6 +17,8 @@ def cal_eval(dir_name, name_prefix):
     file_name = os.listdir(dir_name)
     overall_eval_file_name = ""
 
+    print('model name: ', name_prefix)
+
     object_presence_all_count = 0
     object_presence_success_count = 0
     character_attributes_all_count = {"animal":0, "object":0, "person":0}
@@ -89,12 +91,19 @@ if __name__ == "__main__":
         for item_name in log_dirs:
             dir_path = os.path.join(DEFAULT_EVAL_OUTPUT_LOG_ROOT, item_name)
 
-            if os.path.isdir(dir_path) and item_name not in EXCLUDED_DIRS:
-                # print("Processing directory:", dir_path)
-                dir_name = dir_path
-                name_prefix = item_name
-                acc, output_filepath = cal_eval(dir_name, name_prefix)
-                save_eval_result(output_filepath, acc)
+            if not os.path.isdir(dir_path):
+                continue
+
+            if item_name in EXCLUDED_DIRS:
+                continue
+
+            if item_name.endswith('_average'):
+                continue
+
+            dir_name = dir_path
+            name_prefix = item_name
+            acc, output_filepath = cal_eval(dir_name, name_prefix)
+            save_eval_result(output_filepath, acc)
     else:
         dir_name = args.eval_output_log_dir_name
         name_prefix = args.name_prefix
