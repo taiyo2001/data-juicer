@@ -1,0 +1,24 @@
+import re
+from typing import Optional
+
+def extract_boxed_prompt(text: str) -> Optional[str]:
+    """最後に\boxed{...} で囲まれた文字列を抽出"""
+    match = re.search(r'.*\\boxed{(.*?)}(.*)$', text, re.DOTALL | re.IGNORECASE)
+
+    if not match:
+        return None
+
+    negative_prompt = match.group(1).strip()
+
+    if not negative_prompt:
+        return None
+
+    return negative_prompt
+
+# test code
+if __name__ == "__main__":
+    texts = "Okay, let's tackle this. The user wants a custom negative prompt based on the given positive prompt. First, I need to understand the structure from the example. The example had categories A, B, C, each with specific elements. \n\nLooking at the positive prompt, the main elements are a copper basket bowl, a plastic menu card with text, black containers with white papers, a gold container, and the background. The image is realistic with specific lighting and shadows.\n\nFor Category A (image quality): I should include terms like low quality, worst quality, blurry, etc. Also, artifacts like jpeg artifacts, deformed, bad anatomy (though maybe less relevant here, but still include). Maybe \"unclear\" or \"low resolution\".\n\nCategory B (count and existence): The prompt mentions specific items. There's one copper basket, one plastic card, several black containers, one gold container. So need to ensure the counts are correct. Maybe (1 copper bowl:1.2), (missing menu card:1.3), (wrong number of containers:1.4). Also, check if the text on the card is present, so (missing text:1.3).\n\nCategory C (attributes and composition): The bowl is round, copper, with a square design. The menu card is transparent, has stains. The gold container is cylindrical, threaded. So need to avoid wrong attributes. Terms like (wrong shape:1.2), (incorrect color:1.3), (flat shadows:1.2), (simple background:1.1). Also, the shadow placement is important, so (wrong shadow position:1.2). The lighting is soft and diffused, so avoid harsh lighting or incorrect light sources.\n\nPutting it all together, ensuring weights are applied as in the example. Maybe some weights are higher for critical elements. Also, check for any missing elements like the fruit (though there's none, but the bowl is empty). Wait, the prompt says no fruit inside. So maybe (fruit present:1.3) is a negative? Or is that part of the positive? Wait, the positive says \"no fruit inside\", so the negative prompt should prevent the model from adding fruit. So (fruit present:1.3).\n\nAlso, the containers: \"several black containers\" – need to ensure the count is correct. So (wrong number of containers:1.4). The gold container is separate, so (gold container misplaced:1.2). The menu card has text, so (missing text:1.3). The bowl's shadow is on the bottom left, so (wrong shadow position:1.2).\n\nCombining all these into a single string with commas and weights. Let me check the example again to match the structure. The example had (low quality, worst quality:1.4), blurry, etc. So I need to follow that format with weights for specific terms.\n\nSo the final negative prompt would be something like:\n\n(low quality, worst quality:1.4), blurry, noisy, jpeg artifacts, deformed, (1 copper bowl:1.2), (missing menu card:1.3), (wrong number of containers:1.4), (missing text:1.3), (wrong shape:1.2), (incorrect color:1.3), (flat shadows:1.2), (wrong shadow position:1.2), (fruit present:1.3), (gold container misplaced:1.2), (simple background:1.1), (harsh lighting:1.3)\n```\n\\boxed{(low quality, worst quality:1.4), blurry, noisy, jpeg artifacts, deformed, (1 copper bowl:1.2), (missing menu card:1.3), (wrong number of containers:1.4), (missing text:1.3), (wrong shape:1.2), (incorrect color:1.3), (flat shadows:1.2), (wrong shadow position:1.2), (fruit present:1.3), (gold container misplaced:1.2), (simple background:1.1), (harsh lighting:1.3)}\n``` \n\nWait, let me check if all categories are covered. Category A: low quality, blurry, etc. Category B: counts (1 bowl, missing card, wrong containers). Category C: attributes (shape, color, shadows, misplaced container, lighting). Also, the background is neutral tone, so maybe (simple background:1.1) is okay. The fruit is not present, so (fruit present:1.3) is correct. I think this covers all aspects.\n</think>\n\n\\boxed{correct, (low quality, worst quality:1.4), blurry, noisy, jpeg artifacts, deformed, (1 copper bowl:1.2), (missing menu card:1.3), (wrong number of containers:1.4), (missing text:1.3), (wrong shape:1.2), (incorrect color:1.3), (flat shadows:1.2), (wrong shadow position:1.2), (fruit present:1.3), (gold container misplaced:1.2), (simple background:1.1), (harsh lighting:1.3)}xxxx"
+
+    extract_boxed_prompted = extract_boxed_prompt(texts)
+    # correctから始まる文字列が抽出されることを期待
+    print(f"extract_boxed_prompted: {extract_boxed_prompted}")

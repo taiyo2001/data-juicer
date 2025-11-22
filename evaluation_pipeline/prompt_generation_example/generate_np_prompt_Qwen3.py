@@ -9,7 +9,8 @@ sys.path.append(PROJECT_ROOT)
 sys.path.append(os.path.join(PROJECT_ROOT, "data_juicer/evaluation_pipeline"))
 # --------------------------------
 
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from llama_cpp import Llama
 from extract_prompt import extract_boxed_prompt
 import torch
 import json
@@ -20,21 +21,29 @@ import argparse
 def parse_args():
     parser = argparse.ArgumentParser()
     # model
-    parser.add_argument('--model_path', type=str, default="meta-llama/Llama-3.1-8B")
-    parser.add_argument('--model_name', type=str, default="Llama-3_1")
+    parser.add_argument('--model_path', type=str, default="Qwen/Qwen3-14B")
+    parser.add_argument('--model_name', type=str, default="Qwen3-14B")
     parser.add_argument('--prompt_path', type=str, default="./DetailMaster_Dataset/DetailMaster_Dataset.json")
     parser.add_argument('--output_json', type=str, default="./output.json")
-    parser.add_argument('--use_quantization', type=bool, default=False)
+    parser.add_argument('--gguf_model', type=str, default=None)
     # negative prompt
     parser.add_argument('--np_instruction_path', type=str, default=None)
 
     args = parser.parse_args()
 
-    if args.model_name == "Llama-3_1":
-        args.model_path = "meta-llama/Llama-3.1-8B"
-    elif args.model_name == "Llama-3_3":
-        # WARN: OOM in 4bit model on A100 GPU
-        args.model_path = "meta-llama/Llama-3.3-70B-Instruct"
+    # Qwen3-14B
+    if args.model_name == "Qwen3-14B":
+        args.model_path = "Qwen/Qwen3-14B"
+    elif args.model_name == "Qwen3-14B-FP8":
+        args.model_path = "Qwen/Qwen3-14B-FP8"
+    elif args.model_name == "Qwen3-14B-GGUF":
+        args.model_path = "Qwen/Qwen3-14B-GGUF"
+        args.gguf_model = "Qwen3-14B-Q8_0.gguf"
+    elif args.model_name == "Qwen3-30B-A3B-Thinking-2507-GGUF":
+        args.model_path = "unsloth/Qwen3-30B-A3B-Thinking-2507-GGUF"
+        # args.gguf_model = "Qwen3-30B-A3B-Thinking-2507-Q8_0.gguf"
+        args.gguf_model = "Qwen3-30B-A3B-Thinking-2507-Q4_K_M.gguf"
+
 
     args.output_json = f"./evaluation_pipeline/prompt_generation_example/output_np_info_{args.model_name}.json"
 
@@ -43,6 +52,10 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
+
+    is_gguf = False
+    if "-GGUF" in args.model_name:
+        is_gguf = True
 
     # --- Colab Configuration ---
     try:
@@ -56,26 +69,27 @@ if __name__ == "__main__":
 
     print("--- Model Name: ", args.model_name, " ---")
     print("--- Negative Prompt Instruction Path: ", args.np_instruction_path, " ---")
-    print("--- Quantization: ", args.use_quantization, " ---")
+    print("--- GGUF: ", is_gguf, args.gguf_model, " ---")
+
 
     if not torch.cuda.is_available():
         print("WARNING: CUDA is not available. Using CPU may be very slow for large models.")
         exit(1)
 
-    quantization_config = None
-    if args.use_quantization:
-        quantization_config = BitsAndBytesConfig(
-            # load_in_8bit=True,
-            # llm_int8_enable_fp32_cpu_offload=True
-            load_in_4bit=True,
+    if is_gguf and args.gguf_model is not None:
+        llm = Llama.from_pretrained(
+            repo_id=args.model_path,
+            filename=args.gguf_model,
+            n_ctx=8192,
+            n_gpu_layers=-1
         )
-    quantized_model = AutoModelForCausalLM.from_pretrained(
-        args.model_path,
-        torch_dtype=torch.bfloat16,
-        quantization_config=quantization_config,
-        device_map="auto"
-    )
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path)
+    else:
+        tokenizer = AutoTokenizer.from_pretrained(args.model_path)
+        model = AutoModelForCausalLM.from_pretrained(
+            args.model_path
+            # torch_dtype="auto",
+            # device_map="auto"
+        )
 
     new_data = []
 
@@ -101,14 +115,26 @@ if __name__ == "__main__":
 **{task_title}:**
 """
 
-            input_ids = tokenizer(prompt, return_tensors="pt").to("cuda")
-            output_tensor = quantized_model.generate(
-                **input_ids,
-                # max_new_tokens=8192 - input_ids["input_ids"].shape[-1],
-                max_new_tokens=4096,
-            )
-            generated_token_ids = output_tensor[0][input_ids["input_ids"].shape[-1]:]
-            generated_text = tokenizer.decode(generated_token_ids, skip_special_tokens=True)
+            if is_gguf:
+                output = llm.create_completion(
+                    prompt,
+                    # max_tokens=128,
+                    max_tokens=32768,
+                    # temperature=0.1,
+                )
+                generated_text = output['choices'][0]['text']
+            else:
+                messages = [
+                    {"role": "user", "content": prompt},
+                ]
+                inputs = tokenizer.apply_chat_template(
+                    messages,
+                    add_generation_prompt=True,
+                    tokenize=True,
+                    return_dict=True,
+                    return_tensors="pt",
+                ).to(model.device)
+                generated_text = model.generate(**inputs, max_new_tokens=128)[0][inputs["input_ids"].shape[-1]:]
 
             extract_boxed_prompted = extract_boxed_prompt(generated_text)
 
