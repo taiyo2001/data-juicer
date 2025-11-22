@@ -4,11 +4,10 @@ __pycache__/
 # Output files
 output_image*/
 output_image_info*.json
+output_np_info_*.json
 playground/evaluation/*
 
 # model
 models/
 yoloe-11l-seg.pt
 mobileclip_blt.ts
-## colab models
-huggingface_cache/
