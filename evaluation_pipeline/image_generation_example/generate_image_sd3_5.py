@@ -29,6 +29,7 @@ def parse_args():
     # in-context learning
     parser.add_argument('--icl_num', type=str, default=None)
     parser.add_argument('--icl_prompt', type=str, default=None)
+    parser.add_argument('--icl_t5_only', type=bool, default=False)
     # negative prompt
     parser.add_argument('--np_num', type=str, default=None)
     parser.add_argument('--np_prompt', type=str, default=None)
@@ -37,7 +38,10 @@ def parse_args():
     args=parser.parse_args()
 
     if args.icl_num is not None and args.icl_prompt is not None:
-        args.model_name = args.model_name + f"_ICL{args.icl_num}"
+        if args.icl_t5_only:
+            args.model_name = args.model_name + f"_T5_ICL{args.icl_num}"
+        else:
+            args.model_name = args.model_name + f"_ICL{args.icl_num}"
 
     if args.np_num is not None and (args.np_prompt is not None or args.np_prompt_path is not None):
         args.model_name = args.model_name + f"_NP{args.np_num}"
@@ -143,10 +147,8 @@ if __name__ == "__main__":
     for temp_piece in tqdm.tqdm(data):
         try:
             image_id = f"{temp_piece['dataset_target']}_{temp_piece['image_id']}"
-
-            prompt = temp_piece["polished_prompt"]
-            if args.icl_prompt and args.icl_num:
-                prompt = args.icl_prompt + "\n" + prompt
+            normal_prompt = temp_piece["polished_prompt"]
+            icl_positive_prompt = args.icl_prompt + "\n" + normal_prompt
 
             neg_prompt = ""
             if args.np_prompt_path and args.np_num:
@@ -155,8 +157,18 @@ if __name__ == "__main__":
                 neg_prompt = args.np_prompt
 
             if prompt_weighting:
+                prompt = normal_prompt
+                llm_prompt = None
+                if args.icl_prompt and args.icl_num and args.icl_t5_only:
+                    llm_prompt = icl_positive_prompt
+                elif args.icl_prompt and args.icl_num:
+                    prompt = icl_positive_prompt
+
                 (prompt_embeds, prompt_neg_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds) = get_weighted_text_embeddings_sd3(
-                    pipe, prompt=prompt, neg_prompt=neg_prompt
+                    pipe,
+                    prompt=prompt,
+                    llm_prompt=llm_prompt,
+                    neg_prompt=neg_prompt
                 )
                 image = pipe(
                     prompt_embeds=prompt_embeds,
@@ -178,6 +190,10 @@ if __name__ == "__main__":
                 #     guidance_scale=guidance_scale,
                 # ).images[0]
             else:
+                prompt = normal_prompt
+                if args.icl_prompt and args.icl_num:
+                    prompt = icl_positive_prompt
+
                 image = pipe(
                     prompt,
                     height=512,
