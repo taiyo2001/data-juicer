@@ -16,22 +16,30 @@ COMPARISON_RESULT_ROOT = os.path.join(PROJECT_ROOT, "data-juicer/playground/eval
 # --------------------------------
 
 MODELS_TO_COMPARE = [
-    # --- Other ---
     # --- FLUX ---
-    {"base_model": "FLUX1-schnell", "comparison_model": "FLUX1-schnell_s50"},
-    {"base_model": "FLUX1-schnell", "comparison_model": "FLUX1-schnell_ICL1"},
-    {"base_model": "FLUX1-schnell", "comparison_model": "FLUX1-schnell_ICL2"},
+    {"base_model": "FLUX1-schnell_average", "comparison_model": "FLUX1-schnell_SP1_average"},       # Base vs SP1
+    {"base_model": "FLUX1-schnell_average", "comparison_model": "FLUX1-schnell_SP2_average"},       # Base vs SP2
     # --- SD1.5 ---
-    {"base_model": "SD1_5", "comparison_model": "SD1_5_ICL1"},
-    {"base_model": "SD1_5", "comparison_model": "SD1_5_ICL2"},
-    {"base_model": "SD1_5_EM", "comparison_model": "SD1_5_EM_ICL1"},
-    {"base_model": "SD1_5_EM", "comparison_model": "SD1_5_EM_ICL2"},
-    {"base_model": "SD1_5_EM", "comparison_model": "SD1_5_EM_NP1"},
+    {"base_model": "SD1_5_average", "comparison_model": "SD1_5_SP1_average"},                       # Base vs SP1
+    {"base_model": "SD1_5_average", "comparison_model": "SD1_5_SP2"},
+    {"base_model": "SD1_5_average", "comparison_model": "SD1_5_EM_average"},                        # Base vs EM
+    {"base_model": "SD1_5_EM_average", "comparison_model": "SD1_5_EM_SP1_average"},                 # EM vs SP1
+    {"base_model": "SD1_5_EM_average", "comparison_model": "SD1_5_EM_SP2_average"},                 # EM vs SP2
+    {"base_model": "SD1_5_EM_average", "comparison_model": "SD1_5_EM_NP1_average"},                 # EM vs NP1
+    {"base_model": "SD1_5_EM_average", "comparison_model": "SD1_5_EM_NP3_average"},                 # EM vs NP3
+    # --- SD3.5 ---
+    {"base_model": "SD3_5-medium_average", "comparison_model": "SD3_5-medium_EM_average"},                  # Base vs EM
+    {"base_model": "SD3_5-medium_EM_average", "comparison_model": "SD3_5-medium_EM_SP1_average"},           # EM vs SP1
+    {"base_model": "SD3_5-medium_EM_average", "comparison_model": "SD3_5-medium_EM_T5_SP1_average"},        # EM vs T5 SP1
+    {"base_model": "SD3_5-medium_EM_SP1_average", "comparison_model": "SD3_5-medium_EM_T5_SP1_average"},    # SP1 vs T5 SP1
+    {"base_model": "SD3_5-medium_EM_average", "comparison_model": "SD3_5-medium_EM_NP1_average"},           # EM vs NP1
+    {"base_model": "SD3_5-medium_EM_average", "comparison_model": "SD3_5-medium_EM_NP3_average"},           # EM vs NP3
     # --- ParaDiffusion ---
-    {"base_model": "ParaDiffusion", "comparison_model": "ParaDiffusion_ICL1"},
-    {"base_model": "ParaDiffusion", "comparison_model": "ParaDiffusion_ICL2"},
-    {"base_model": "ParaDiffusion_L", "comparison_model": "ParaDiffusion_L_ICL1"},
-    {"base_model": "ParaDiffusion_L", "comparison_model": "ParaDiffusion_L_ICL2"},
+    {"base_model": "ParaDiffusion", "comparison_model": "ParaDiffusion_SP1"},                       # Base vs SP1
+    {"base_model": "ParaDiffusion", "comparison_model": "ParaDiffusion_SP2"},                       # Base vs SP2
+    {"base_model": "ParaDiffusion_L_average", "comparison_model": "ParaDiffusion_L_SP1_average"},   # L Base vs SP1
+    {"base_model": "ParaDiffusion_L_average", "comparison_model": "ParaDiffusion_L_SP2_average"},   # L Base vs SP2
+    # --- Other ---
 ]
 
 def parse_args():
@@ -43,7 +51,10 @@ def parse_args():
 
 
 def find_final_score_file(model_dir):
-    search_path = os.path.join(model_dir, "*_final_score.json")
+    if model_dir.endswith('_average'):
+        search_path = os.path.join(model_dir, "*_average_score.json")
+    else:
+        search_path = os.path.join(model_dir, "*_final_score.json")
     files = glob.glob(search_path)
     if files:
         return files[0]

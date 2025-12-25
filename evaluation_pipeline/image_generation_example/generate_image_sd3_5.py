@@ -27,9 +27,9 @@ def parse_args():
     parser.add_argument('--image_output_dir', type=str, default="./output_image/")
     parser.add_argument('--count', type=str, default=None)
     # in-context learning
-    parser.add_argument('--icl_num', type=str, default=None)
-    parser.add_argument('--icl_prompt', type=str, default=None)
-    parser.add_argument('--icl_t5_only', type=bool, default=False)
+    parser.add_argument('--sp_num', type=str, default=None)
+    parser.add_argument('--sp_prompt', type=str, default=None)
+    parser.add_argument('--sp_t5_only', type=bool, default=False)
     # negative prompt
     parser.add_argument('--np_num', type=str, default=None)
     parser.add_argument('--np_prompt', type=str, default=None)
@@ -37,11 +37,11 @@ def parse_args():
 
     args=parser.parse_args()
 
-    if args.icl_num is not None and args.icl_prompt is not None:
-        if args.icl_t5_only:
-            args.model_name = args.model_name + f"_T5_ICL{args.icl_num}"
+    if args.sp_num is not None and args.sp_prompt is not None:
+        if args.sp_t5_only:
+            args.model_name = args.model_name + f"_T5_SP{args.sp_num}"
         else:
-            args.model_name = args.model_name + f"_ICL{args.icl_num}"
+            args.model_name = args.model_name + f"_SP{args.sp_num}"
 
     if args.np_num is not None and (args.np_prompt is not None or args.np_prompt_path is not None):
         args.model_name = args.model_name + f"_NP{args.np_num}"
@@ -49,8 +49,8 @@ def parse_args():
     if args.count is not None:
         args.model_name = args.model_name + f"_{args.count}"
 
-    args.output_json = f"./evaluation_pipeline/image_generation_example/output_image_info_{args.model_name}.json"
-    args.image_output_dir = f"./evaluation_pipeline/image_generation_example/output_image_{args.model_name}/"
+    args.output_json = f"./outputs/image_info/output_image_info_{args.model_name}.json"
+    args.image_output_dir = f"./outputs/image/output_image_{args.model_name}/"
 
     return args
 
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     if 'large-turbo' in args.model_name:
         args.model_path = "stabilityai/stable-diffusion-3.5-large-turbo"
         num_inference_steps = 4
-        guidance_scale = 0.0
+        guidance_scale = 0.0 # No CFG
     elif 'large' in args.model_name:
         args.model_path = "stabilityai/stable-diffusion-3.5-large"
         num_inference_steps = 28
@@ -75,6 +75,14 @@ if __name__ == "__main__":
     if "_EM" in args.model_name:
         prompt_weighting = True
 
+    max_sequence_length = 256 # default
+    if '_SL256' in args.model_name:
+        max_sequence_length = 256
+    elif '_SL512' in args.model_name:
+        max_sequence_length = 512
+    elif '_SL768' in args.model_name:
+        max_sequence_length = 768
+
     # --- Colab Configuration ---
     try:
         import google.colab
@@ -87,8 +95,9 @@ if __name__ == "__main__":
 
     print("--- Model Name: ", args.model_name, " ---")
     print("--- Prompt Weighting: ", prompt_weighting, " ---")
-    print("--- ICL Num: ", args.icl_num, " ---")
-    print("--- ICL Prompt: ", args.icl_prompt, " ---")
+    print("--- Max Sequence Length: ", max_sequence_length, " ---")
+    print("--- SP Num: ", args.sp_num, " ---")
+    print("--- SP Prompt: ", args.sp_prompt, " ---")
     print("--- Negative Prompt Num: ", args.np_num, " ---")
     print("--- Negative Prompt: ", args.np_prompt_path or args.np_prompt, " ---")
 
@@ -148,7 +157,7 @@ if __name__ == "__main__":
         try:
             image_id = f"{temp_piece['dataset_target']}_{temp_piece['image_id']}"
             normal_prompt = temp_piece["polished_prompt"]
-            icl_positive_prompt = args.icl_prompt + "\n" + normal_prompt
+            sp_positive_prompt = args.sp_prompt + "\n" + normal_prompt if args.sp_prompt and args.sp_num else normal_prompt
 
             neg_prompt = ""
             if args.np_prompt_path and args.np_num:
@@ -159,10 +168,10 @@ if __name__ == "__main__":
             if prompt_weighting:
                 prompt = normal_prompt
                 llm_prompt = None
-                if args.icl_prompt and args.icl_num and args.icl_t5_only:
-                    llm_prompt = icl_positive_prompt
-                elif args.icl_prompt and args.icl_num:
-                    prompt = icl_positive_prompt
+                if args.sp_prompt and args.sp_num and args.sp_t5_only:
+                    llm_prompt = sp_positive_prompt
+                elif args.sp_prompt and args.sp_num:
+                    prompt = sp_positive_prompt
 
                 (prompt_embeds, prompt_neg_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds) = get_weighted_text_embeddings_sd3(
                     pipe,
@@ -178,6 +187,7 @@ if __name__ == "__main__":
                     height=512,
                     width=512,
                     num_inference_steps=num_inference_steps,
+                    max_sequence_length=max_sequence_length,
                     guidance_scale=guidance_scale,
                 ).images[0]
 
@@ -187,18 +197,21 @@ if __name__ == "__main__":
                 #     height=512,
                 #     width=512,
                 #     num_inference_steps=num_inference_steps,
+                #     max_sequence_length=max_sequence_length,
                 #     guidance_scale=guidance_scale,
                 # ).images[0]
             else:
                 prompt = normal_prompt
-                if args.icl_prompt and args.icl_num:
-                    prompt = icl_positive_prompt
+                if args.sp_prompt and args.sp_num:
+                    prompt = sp_positive_prompt
 
                 image = pipe(
                     prompt,
                     height=512,
                     width=512,
                     num_inference_steps=num_inference_steps,
+                    max_sequence_length=max_sequence_length,
+                    guidance_scale=guidance_scale,
                 ).images[0]
 
             image_name = f"{temp_piece['dataset_target']}_{args.model_name}_{valid_image_count}_{temp_piece['image_id']}"

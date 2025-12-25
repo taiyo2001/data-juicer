@@ -6,6 +6,7 @@ output_image*/
 output_image_info*.json
 output_np_info_*.json
 playground/evaluation/*
+outputs/
 
 # model
 models/

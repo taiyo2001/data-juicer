@@ -3,11 +3,11 @@ import json
 import os
 from PIL import Image
 
-IMAGE_DIR_PREFIX = "./evaluation_pipeline/image_generation_example/output_image_"
+IMAGE_DIR_PREFIX = "./outputs/image/output_image_"
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', type=str, default="SD1_5_ICL1")
+    parser.add_argument('--model_name', type=str, default="SD1_5_SP1")
     parser.add_argument('--image_id', type=str, default="qual_dev_00003.jpg")
     parser.add_argument('--prompt_path', type=str, default="./DetailMaster_Dataset/DetailMaster_Dataset.json")
 

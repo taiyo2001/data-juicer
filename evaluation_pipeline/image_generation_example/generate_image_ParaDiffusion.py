@@ -17,29 +17,27 @@ PEFT_MODEL_PATH = os.path.join(PROJECT_ROOT, "ParaDiffusion/weights/text_encoder
 import json
 import tqdm
 import argparse
-
 from ParaDiffusion.demo import get_pipe
 
 def parse_args():
     parser = argparse.ArgumentParser()
     # model
-    parser.add_argument('--model_path', type=str, default=None)
     parser.add_argument('--model_name', type=str, default="ParaDiffusion")
     parser.add_argument('--prompt_path', type=str, default="./DetailMaster_Dataset/DetailMaster_Dataset.json")
     parser.add_argument('--output_json', type=str, default="./output.json")
     parser.add_argument('--image_output_dir', type=str, default="./output_image/")
     parser.add_argument('--count', type=str, default=None)
     # in-context learning
-    parser.add_argument('--icl_num', type=str, default=None)
-    parser.add_argument('--icl_prompt', type=str, default=None)
+    parser.add_argument('--sp_num', type=str, default=None)
+    parser.add_argument('--sp_prompt', type=str, default=None)
     # negative prompt
     parser.add_argument('--np_num', type=str, default=None)
     parser.add_argument('--np_prompt', type=str, default=None)
 
     args = parser.parse_args()
 
-    if args.icl_num is not None and args.icl_prompt is not None:
-        args.model_name = args.model_name + f"_ICL{args.icl_num}"
+    if args.sp_num is not None and args.sp_prompt is not None:
+        args.model_name = args.model_name + f"_SP{args.sp_num}"
 
     # 未対応
     # if args.np_num is not None and args.np_prompt is not None:
@@ -48,8 +46,8 @@ def parse_args():
     if args.count is not None:
         args.model_name = args.model_name + f"_{args.count}"
 
-    args.output_json = f"./evaluation_pipeline/image_generation_example/output_image_info_{args.model_name}.json"
-    args.image_output_dir = f"./evaluation_pipeline/image_generation_example/output_image_{args.model_name}/"
+    args.output_json = f"./outputs/image_info/output_image_info_{args.model_name}.json"
+    args.image_output_dir = f"./outputs/image/output_image_{args.model_name}/"
 
     return args
 
@@ -63,8 +61,8 @@ if __name__ == "__main__":
 
     print("--- Model Name: ", args.model_name, " ---")
     print("--- Long Prompt: ", long_prompt, " ---")
-    print("--- ICL Num: ", args.icl_num, " ---")
-    print("--- ICL Prompt: ", args.icl_prompt, " ---")
+    print("--- SP Num: ", args.sp_num, " ---")
+    print("--- SP Prompt: ", args.sp_prompt, " ---")
     print("--- Negative Prompt Num: ", args.np_num, " ---")
     print("--- Negative Prompt: ", args.np_prompt, " ---")
 
@@ -95,14 +93,14 @@ if __name__ == "__main__":
         try:
             prompt = temp_piece["polished_prompt"]
             # print(f"--- before prompt {prompt} ---")
-            if args.icl_prompt and args.icl_num:
+            if args.sp_prompt and args.sp_num:
                 prompt = args.icl_prompt + "\n" + prompt
             # print(f"--- after prompt {prompt} ---")
             image = pipe(
                 prompt,
                 height=512,
                 width=512,
-                num_inference_steps=50,
+                num_inference_steps=100,
             ).images[0]
 
             image_name = f"{temp_piece['dataset_target']}_{args.model_name}_{valid_image_count}_{temp_piece['image_id']}"

@@ -18,15 +18,25 @@ EVALUATION_ROOT = os.path.join(PROJECT_ROOT, "data-juicer/playground/evaluation/
 # --------------------------------
 
 ARR_MODELS_LIST = [
-    'FLUX1-schnell_ICL1',
-    # 'FLUX1-schnell'
+    'FLUX1-schnell',
+    'FLUX1-schnell_SP1',
+    'FLUX1-schnell_SP2',
+    'SD1_5',
+    'SD1_5_SP1',
     'SD1_5_EM',
-    'SD1_5_EM_ICL1',
-    # 'SD1_5_EM_ICL2',
+    'SD1_5_EM_SP1',
+    'SD1_5_EM_SP2',
     'SD1_5_EM_NP1',
+    'SD1_5_EM_NP3',
+    'SD3_5-medium',
+    'SD3_5-medium_EM',
+    'SD3_5-medium_EM_SP1',
+    'SD3_5-medium_EM_T5_SP1',
+    'SD3_5-medium_EM_NP1',
+    'SD3_5-medium_EM_NP3',
     'ParaDiffusion_L',
-    'ParaDiffusion_L_ICL1',
-    'ParaDiffusion_L_ICL2',
+    'ParaDiffusion_L_SP1',
+    'ParaDiffusion_L_SP2',
 ]
 
 

@@ -26,25 +26,26 @@ def parse_args():
     parser.add_argument('--image_output_dir', type=str, default="./output_image/")
     parser.add_argument('--count', type=str, default=None)
     # in-context learning
-    parser.add_argument('--icl_num', type=str, default=None)
-    parser.add_argument('--icl_prompt', type=str, default=None)
+    parser.add_argument('--sp_num', type=str, default=None)
+    parser.add_argument('--sp_prompt', type=str, default=None)
     # negative prompt
     parser.add_argument('--np_num', type=str, default=None)
     parser.add_argument('--np_prompt', type=str, default=None)
+    parser.add_argument('--np_prompt_path', type=str, default=None)
 
     args=parser.parse_args()
 
-    if args.icl_num is not None and args.icl_prompt is not None:
-        args.model_name = args.model_name + f"_ICL{args.icl_num}"
+    if args.sp_num is not None and args.sp_prompt is not None:
+        args.model_name = args.model_name + f"_SP{args.sp_num}"
 
-    if args.np_num is not None and args.np_prompt is not None:
+    if args.np_num is not None and (args.np_prompt is not None or args.np_prompt_path is not None):
         args.model_name = args.model_name + f"_NP{args.np_num}"
 
     if args.count is not None:
         args.model_name = args.model_name + f"_{args.count}"
 
-    args.output_json = f"./evaluation_pipeline/image_generation_example/output_image_info_{args.model_name}.json"
-    args.image_output_dir = f"./evaluation_pipeline/image_generation_example/output_image_{args.model_name}/"
+    args.output_json = f"./outputs/image_info/output_image_info_{args.model_name}.json"
+    args.image_output_dir = f"./outputs/image/output_image_{args.model_name}/"
 
     return args
 
@@ -68,12 +69,11 @@ if __name__ == "__main__":
 
     print("--- Model Name: ", args.model_name, " ---")
     print("--- Prompt Weighting: ", prompt_weighting, " ---")
-    print("--- ICL Num: ", args.icl_num, " ---")
-    print("--- ICL Prompt: ", args.icl_prompt, " ---")
+    print("--- SP Num: ", args.sp_num, " ---")
+    print("--- SP Prompt: ", args.sp_prompt, " ---")
     print("--- Negative Prompt Num: ", args.np_num, " ---")
-    print("--- Negative Prompt: ", args.np_prompt, " ---")
+    print("--- Negative Prompt: ", args.np_prompt_path or args.np_prompt, " ---")
 
-    # TODO: GuidanceScale Adaption
     pipe = DiffusionPipeline.from_pretrained(
         args.model_path,
         torch_dtype=torch.bfloat16,
@@ -84,18 +84,34 @@ if __name__ == "__main__":
     if args.image_output_dir:
         os.makedirs(args.image_output_dir, exist_ok=True)
 
+    if args.np_prompt_path:
+        with open(args.np_prompt_path, "r") as f:
+            np_data = json.load(f)
+
+        np_dict = {}
+        for item in np_data:
+            dict_image_id = item.get("image_id")
+            dict_np = item.get("negative_prompt")
+            if dict_image_id and dict_np:
+                np_dict[dict_image_id] = dict_np
+        print("np_dict len: ", len(np_dict))
+
     with open(args.prompt_path, "r") as f:
         data = json.load(f)
 
     valid_image_count = 0
     for temp_piece in tqdm.tqdm(data):
         try:
+            image_id = f"{temp_piece['dataset_target']}_{temp_piece['image_id']}"
+
             prompt = temp_piece["polished_prompt"]
-            if args.icl_prompt and args.icl_num:
-                prompt = args.icl_prompt + "\n" + prompt
+            if args.sp_prompt and args.sp_num:
+                prompt = args.sp_prompt + "\n" + prompt
 
             neg_prompt = ""
-            if args.np_prompt and args.np_num:
+            if args.np_prompt_path and args.np_num:
+                neg_prompt = np_dict.get(image_id)
+            elif args.np_prompt and args.np_num:
                 neg_prompt = args.np_prompt
 
             if prompt_weighting:
@@ -110,6 +126,7 @@ if __name__ == "__main__":
                     num_inference_steps=30,
                 ).images[0]
             else:
+                # TODO: GuidanceScale Adaption
                 image = pipe(
                     prompt,
                     height=512,
@@ -122,7 +139,7 @@ if __name__ == "__main__":
 
             temp_json = {}
             temp_json["output_image_name"] = image_name
-            temp_json["image_id"] = temp_piece["dataset_target"] + "_" + temp_piece["image_id"]
+            temp_json["image_id"] = image_id
             new_data.append(temp_json)
 
             valid_image_count += 1
