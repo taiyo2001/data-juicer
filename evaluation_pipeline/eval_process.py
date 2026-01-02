@@ -1,5 +1,14 @@
-import tqdm
 import os
+import sys
+
+# --- Dynamic Path Configuration ---
+current_dir = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(current_dir, "../.."))
+print(f"Project Root Directory: {PROJECT_ROOT}")
+sys.path.append(PROJECT_ROOT)
+# --------------------------------
+
+import tqdm
 import json
 from lmdeploy import pipeline, TurbomindEngineConfig
 from lmdeploy.vl import load_image
@@ -11,14 +20,15 @@ from PIL import Image
 from PIL import ImageDraw
 import random
 import math
+from src.services.slack_client_service import slack_service, build_eval_start_message, build_eval_complete_message
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--qwen2_5_vl_model_path', type=str, default="Qwen/Qwen2.5-VL-7B-Instruct")
-    parser.add_argument('--yoloe_model_path', type=str, default="yoloe-11l-seg.pt")
+    parser.add_argument('--yoloe_model_path', type=str, default="./data-juicer/models/yoloe-11l-seg.pt")
     parser.add_argument('--blip_model_path', type=str, default="Salesforce/blip-itm-large-flickr")
-    parser.add_argument('--ann_json_path', type=str, default="./DetailMaster_Dataset/DetailMaster_Dataset.json")
+    parser.add_argument('--ann_json_path', type=str, default="./data-juicer/DetailMaster_Dataset/DetailMaster_Dataset.json")
     parser.add_argument('--image_folder', type=str, default="./image_folder")
     parser.add_argument('--image_info_json', type=str, default="./image_info.json")
     parser.add_argument('--output_log_dir', type=str, default="./output/")
@@ -55,6 +65,11 @@ def iou_cal(bbox1, bbox2):
 if __name__ == "__main__":
     args = parse_args()
     random_num = random.randint(1000000,9999999)
+
+    # notify eval start
+    mention_id = os.environ.get("SLACK_MENTION_ID")
+    message = build_eval_start_message(args.output_name_prefix, "DetailMaster_Dataset")
+    slack_message_ts_start = slack_service.send_message(message=message, mention_id=mention_id)
 
     if args.output_log_dir:
         os.makedirs(args.output_log_dir, exist_ok=True)
@@ -112,7 +127,9 @@ if __name__ == "__main__":
         temp_piece_image_id = temp_piece["dataset_target"] + "_" + temp_piece["image_id"]
 
         if not temp_piece_image_id in image_info_dict:
+            print("no found image id: ", temp_piece_image_id)
             no_found_image_id.append(temp_piece_image_id)
+            print("next 1")
             continue
 
         now_prompt_image_info = image_info_dict[temp_piece_image_id]
@@ -473,3 +490,7 @@ if __name__ == "__main__":
 
     with open(os.path.join(args.output_log_dir, args.output_name_prefix + "_" + str(random_num) + "_detail_score.json"), "a") as f:
         json.dump(new_keep_image_state, f)
+
+    # notify eval end
+    message = build_eval_complete_message(args.output_name_prefix, "DetailMaster_Dataset")
+    slack_message_ts_complete = slack_service.send_message(message=message, thread_ts=slack_message_ts_start)

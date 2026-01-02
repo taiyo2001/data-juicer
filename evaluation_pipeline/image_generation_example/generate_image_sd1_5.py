@@ -6,12 +6,12 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(current_dir, "../../.."))
 print(f"Project Root Directory: {PROJECT_ROOT}")
 sys.path.append(PROJECT_ROOT)
-sys.path.append(os.path.join(PROJECT_ROOT, "sd_embed/src"))
 # --------------------------------
 
 import torch
 from diffusers import DiffusionPipeline
-from sd_embed.embedding_funcs import get_weighted_text_embeddings_sd15
+from sd_embed.src.sd_embed.embedding_funcs import get_weighted_text_embeddings_sd15
+from src.services.slack_client_service import slack_service, build_image_generation_start_message, build_image_generation_complete_message
 import json
 import tqdm
 import argparse
@@ -21,7 +21,7 @@ def parse_args():
     # model
     parser.add_argument('--model_path', type=str, default="stable-diffusion-v1-5/stable-diffusion-v1-5")
     parser.add_argument('--model_name', type=str, default="SD1_5")
-    parser.add_argument('--prompt_path', type=str, default="./DetailMaster_Dataset/DetailMaster_Dataset.json")
+    parser.add_argument('--prompt_path', type=str, default="./data-juicer/DetailMaster_Dataset/DetailMaster_Dataset.json")
     parser.add_argument('--output_json', type=str, default="./output.json")
     parser.add_argument('--image_output_dir', type=str, default="./output_image/")
     parser.add_argument('--count', type=str, default=None)
@@ -44,8 +44,8 @@ def parse_args():
     if args.count is not None:
         args.model_name = args.model_name + f"_{args.count}"
 
-    args.output_json = f"./outputs/image_info/output_image_info_{args.model_name}.json"
-    args.image_output_dir = f"./outputs/image/output_image_{args.model_name}/"
+    args.output_json = f"./data-juicer/outputs/image_info/output_image_info_{args.model_name}.json"
+    args.image_output_dir = f"./data-juicer/outputs/image/output_image_{args.model_name}/"
 
     return args
 
@@ -73,6 +73,18 @@ if __name__ == "__main__":
     print("--- SP Prompt: ", args.sp_prompt, " ---")
     print("--- Negative Prompt Num: ", args.np_num, " ---")
     print("--- Negative Prompt: ", args.np_prompt_path or args.np_prompt, " ---")
+
+    # notify start
+    mention_id = os.environ.get("SLACK_MENTION_ID")
+    model_info = {
+        "Prompt Weighting": prompt_weighting,
+        "SP Num": args.sp_num,
+        "SP Prompt": args.sp_prompt,
+        "Negative Prompt Num": args.np_num,
+        "Negative Prompt": args.np_prompt_path or args.np_prompt,
+    }
+    message = build_image_generation_start_message(args.model_name, model_info)
+    slack_message_ts_start = slack_service.send_message(message=message, mention_id=mention_id)
 
     pipe = DiffusionPipeline.from_pretrained(
         args.model_path,
@@ -153,3 +165,7 @@ if __name__ == "__main__":
 
     with open(args.output_json, "a") as f:
         json.dump(new_data, f)
+
+    # notify eval end
+    message = build_image_generation_complete_message(args.model_name)
+    slack_message_ts_complete = slack_service.send_message(message=message, thread_ts=slack_message_ts_start)

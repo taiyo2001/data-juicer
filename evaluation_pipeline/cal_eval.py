@@ -2,7 +2,7 @@ import json
 import os
 import argparse
 
-DEFAULT_EVAL_OUTPUT_LOG_ROOT = "./playground/evaluation"
+DEFAULT_EVAL_OUTPUT_LOG_ROOT = "./data-juicer/playground/evaluation"
 EXCLUDED_DIRS = ['comparison_results', 'excluded_model_name']
 
 def parse_args():
