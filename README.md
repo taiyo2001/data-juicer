@@ -1,12 +1,15 @@
+> [!IMPORTANT]
+> This repository is intended to be used as a **submodule** for [taiyo2001/long-prompting](https://github.com/taiyo2001/long-prompting). It is designed to work as a component within that parent framework.
+
 # DetailMaster: Can Your Text-to-Image Model Handle Long Prompts?
 
 We introduce **DetailMaster**, a benchmark designed to evaluate text-to-image generation in long-prompt scenarios, accompanied by a robust fine-grained evaluation protocol. See more details in our [paper](https://arxiv.org/abs/2505.16915) and download the dataset: [huggingface](https://huggingface.co/datasets/datajuicer/DetailMaster) or [github folder](https://github.com/modelscope/data-juicer/tree/DetailMaster/DetailMaster_Dataset).
 
 > **Abstract:** While recent text-to-image (T2I) models show impressive capabilities in synthesizing images from brief descriptions, their performance significantly degrades when confronted with long, detail-intensive prompts required in professional applications. We present DetailMaster, the first comprehensive benchmark specifically designed to evaluate T2I models' systematical abilities to handle extended textual inputs that contain complex compositional requirements.
-Our benchmark introduces four critical evaluation dimensions: Character Attributes, Structured Character Locations, Multi-Dimensional Scene Attributes, and Explicit Spatial/Interactive Relationships. 
-The benchmark comprises long and detail-rich prompts averaging 284.89 tokens, with high quality validated by expert annotators. 
-Evaluation on 7 general-purpose and 5 long-prompt-optimized T2I models reveals critical performance limitations: state-of-the-art models achieve merely ~50% accuracy in key dimensions like attribute binding and spatial reasoning, while all models showing progressive performance degradation as prompt length increases. 
-Our analysis highlights systemic failures in structural comprehension and detail overload handling, motivating future research into architectures with enhanced compositional reasoning. 
+Our benchmark introduces four critical evaluation dimensions: Character Attributes, Structured Character Locations, Multi-Dimensional Scene Attributes, and Explicit Spatial/Interactive Relationships.
+The benchmark comprises long and detail-rich prompts averaging 284.89 tokens, with high quality validated by expert annotators.
+Evaluation on 7 general-purpose and 5 long-prompt-optimized T2I models reveals critical performance limitations: state-of-the-art models achieve merely ~50% accuracy in key dimensions like attribute binding and spatial reasoning, while all models showing progressive performance degradation as prompt length increases.
+Our analysis highlights systemic failures in structural comprehension and detail overload handling, motivating future research into architectures with enhanced compositional reasoning.
 We open-source the dataset, data curation code, and evaluation tools to advance detail-rich T2I generation and enable broad applications that would otherwise be infeasible due to the lack of a dedicated benchmark.
 
 
@@ -27,15 +30,15 @@ $ pip install -r requirements.txt
 
 Please generate your images based on our [prompts](https://github.com/modelscope/data-juicer/tree/DetailMaster/DetailMaster_Dataset). (The key name for our prompts is "polished_prompt" in the DetailMaster dataset)
 
-During the image generation, you need to simultaneously **record metadata for each generated image**. Every generated image must include two key attributes: 
+During the image generation, you need to simultaneously **record metadata for each generated image**. Every generated image must include two key attributes:
 
 1. ***"output_image_name":*** The filename of your generated image;
-2. ***"image_id":*** A concatenation of DetailMaster data samples' "dataset_target" and "image_id". Formally, for each sample represented as `temp` in the DetailMaster dataset, the ***"image_id"*** should be constructed as `"temp['dataset_target']_temp['image_id']"`. 
+2. ***"image_id":*** A concatenation of DetailMaster data samples' "dataset_target" and "image_id". Formally, for each sample represented as `temp` in the DetailMaster dataset, the ***"image_id"*** should be constructed as `"temp['dataset_target']_temp['image_id']"`.
 
 You should compile the results into a JSON file with the following structure:
 
 ```
-[{"output_image_name": "xxx1.jpg", "image_id": "docci_qual_dev_00003.jpg"}, 
+[{"output_image_name": "xxx1.jpg", "image_id": "docci_qual_dev_00003.jpg"},
  {"output_image_name": "xxx2.jpg", "image_id": "docci_qual_dev_00008.jpg"},
  ...
  {"output_image_name": "xxx500.jpg", "image_id": "ln_flickr_294391131.jpg"},
@@ -102,13 +105,13 @@ $ bash evaluation_pipeline/cal_eval.sh
 ```
 
 
-## Dataset Construction  
+## Dataset Construction
 
 We provide the codes of our dataset construction pipeline. To reproduce our dataset, please run the following scripts in sequential order.
 
 ### Step1: Preparation
 
-To get started, you first need to download the annotation files and images for [DOCCI](https://google.github.io/docci/) and [Localized Narratives](https://google.github.io/localized-narratives/) (Flickr30k and COCO subsets). Regarding the annotation files, they are originally in jsonl format and need to be converted to json format. 
+To get started, you first need to download the annotation files and images for [DOCCI](https://google.github.io/docci/) and [Localized Narratives](https://google.github.io/localized-narratives/) (Flickr30k and COCO subsets). Regarding the annotation files, they are originally in jsonl format and need to be converted to json format.
 
 Please run:
 
@@ -154,7 +157,7 @@ $ bash data_construction_pipeline/detect_character_locations.sh
 
 
 
-### Step5: Spatial partitioning  
+### Step5: Spatial partitioning
 
 "Spatial partitioning" refers to converting the bounding box information of main characters into positional descriptions.
 
