@@ -12,6 +12,7 @@ import torch
 from diffusers import DiffusionPipeline
 from sd_embed.src.sd_embed.embedding_funcs import get_weighted_text_embeddings_sd15
 from src.services.slack_client_service import slack_service, build_image_generation_start_message, build_image_generation_complete_message
+from src.constants import DETAIL_MASTER
 import json
 import tqdm
 import argparse
@@ -133,16 +134,16 @@ if __name__ == "__main__":
                 image = pipe(
                     prompt_embeds=prompt_embeds,
                     negative_prompt_embeds=prompt_neg_embeds,
-                    height=512,
-                    width=512,
+                    height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                    width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
                     num_inference_steps=30,
                 ).images[0]
             else:
                 # TODO: GuidanceScale Adaption
                 image = pipe(
                     prompt,
-                    height=512,
-                    width=512,
+                    height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                    width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
                     num_inference_steps=50,
                 ).images[0]
 

@@ -13,6 +13,7 @@ from diffusers import StableDiffusion3Pipeline, BitsAndBytesConfig, SD3Transform
 from transformers import T5EncoderModel
 from sd_embed.src.sd_embed.embedding_funcs import get_weighted_text_embeddings_sd3
 from src.services.slack_client_service import slack_service, build_image_generation_start_message, build_image_generation_complete_message
+from src.constants import DETAIL_MASTER
 import json
 import tqdm
 import argparse
@@ -94,7 +95,6 @@ if __name__ == "__main__":
     try:
         import google.colab
         is_colab = True
-        DRIVE_PATH_BASE = '/content/drive/MyDrive/workspace/huggingface_cache/'
     except:
         is_colab = False
     print(f"--- is_colab: {is_colab} ---")
@@ -122,7 +122,7 @@ if __name__ == "__main__":
     slack_message_ts_start = slack_service.send_message(message=message, mention_id=mention_id)
 
     # if is_colab:
-    if False: # turboでEMを実施する際はColabでも量子化モデルでないとOOM
+    if False: # Need quantization to avoid OOM when running EM with Turbo on A100 GPU
         # faster than quantization on A100 GPU
         pipe = StableDiffusion3Pipeline.from_pretrained(
             args.model_path,
@@ -208,8 +208,8 @@ if __name__ == "__main__":
                     negative_prompt_embeds=prompt_neg_embeds,
                     pooled_prompt_embeds=pooled_prompt_embeds,
                     negative_pooled_prompt_embeds=negative_pooled_prompt_embeds,
-                    height=512,
-                    width=512,
+                    height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                    width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
                     num_inference_steps=num_inference_steps,
                     max_sequence_length=max_sequence_length,
                     guidance_scale=guidance_scale,
@@ -218,8 +218,8 @@ if __name__ == "__main__":
                 # image = pipe(
                 #     prompt,
                 #     negative_prompt=neg_prompt,
-                #     height=512,
-                #     width=512,
+                #     height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                #     width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
                 #     num_inference_steps=num_inference_steps,
                 #     max_sequence_length=max_sequence_length,
                 #     guidance_scale=guidance_scale,
@@ -231,8 +231,8 @@ if __name__ == "__main__":
 
                 image = pipe(
                     prompt,
-                    height=512,
-                    width=512,
+                    height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                    width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
                     num_inference_steps=num_inference_steps,
                     max_sequence_length=max_sequence_length,
                     guidance_scale=guidance_scale,

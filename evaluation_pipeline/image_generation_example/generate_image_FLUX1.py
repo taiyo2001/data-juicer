@@ -17,7 +17,8 @@ GGUF_MODEL_PATH = None
 
 import torch
 from diffusers import DiffusionPipeline, FluxPipeline, FluxTransformer2DModel, GGUFQuantizationConfig
-from sd_embed.embedding_funcs import get_weighted_text_embeddings_flux1
+from sd_embed.src.sd_embed.embedding_funcs import get_weighted_text_embeddings_flux1
+from src.constants import DETAIL_MASTER
 import json
 import tqdm
 import argparse
@@ -86,8 +87,6 @@ if __name__ == "__main__":
         max_sequence_length = 256
     elif '_SL512' in args.model_name:
         max_sequence_length = 512
-    elif '_SL768' in args.model_name:
-        max_sequence_length = 768
 
     # --- Colab Configuration ---
     try:
@@ -160,15 +159,15 @@ if __name__ == "__main__":
                 # image = pipe(
                 #     prompt_embeds,
                 #     pooled_prompt_embeds=pooled_prompt_embeds,
-                #     height=512,
-                #     width=512,
+                #     height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                #     width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
                 #     num_inference_steps=num_inference_steps,
                 # ).images[0]
             else:
                 image = pipe(
                     prompt,
-                    height=512,
-                    width=512,
+                    height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                    width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
                     num_inference_steps=num_inference_steps, # schnell: 4, dev: 50
                     max_sequence_length=max_sequence_length,
                 ).images[0]

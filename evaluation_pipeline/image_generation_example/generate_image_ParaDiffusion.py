@@ -17,6 +17,7 @@ PEFT_MODEL_PATH = os.path.join(PROJECT_ROOT, "ParaDiffusion/weights/text_encoder
 import json
 import tqdm
 import argparse
+from src.constants import DETAIL_MASTER
 from ParaDiffusion.demo import get_pipe
 
 def parse_args():
@@ -98,8 +99,8 @@ if __name__ == "__main__":
             # print(f"--- after prompt {prompt} ---")
             image = pipe(
                 prompt,
-                height=512,
-                width=512,
+                height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
                 num_inference_steps=100,
             ).images[0]
 
