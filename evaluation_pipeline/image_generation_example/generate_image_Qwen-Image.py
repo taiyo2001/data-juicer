@@ -32,21 +32,14 @@ def parse_args():
     parser.add_argument('--output_json', type=str, default="./output.json")
     parser.add_argument('--image_output_dir', type=str, default="./output_image/")
     parser.add_argument('--count', type=str, default=None)
-    # in-context learning
-    parser.add_argument('--sp_num', type=str, default=None)
-    parser.add_argument('--sp_prompt', type=str, default=None)
-    # negative prompt
-    parser.add_argument('--np_num', type=str, default=None)
-    parser.add_argument('--np_prompt', type=str, default=None)
-    parser.add_argument('--np_prompt_path', type=str, default=None)
+    # structure prompt
+    parser.add_argument('--st_num', type=str, default=None)
+    parser.add_argument('--st_prompt_path', type=str, default=None)
 
     args=parser.parse_args()
 
-    if args.sp_num is not None and args.sp_prompt is not None:
-        args.model_name = args.model_name + f"_SP{args.sp_num}"
-
-    if args.np_num is not None and (args.np_prompt is not None or args.np_prompt_path is not None):
-        args.model_name = args.model_name + f"_NP{args.np_num}"
+    if args.st_num is not None and args.st_prompt_path is not None:
+        args.model_name = args.model_name + f"_ST{args.st_num}"
 
     if args.count is not None:
         args.model_name = args.model_name + f"_{args.count}"
@@ -75,18 +68,14 @@ if __name__ == "__main__":
     print(f"--- is_colab: {is_colab} ---")
     print("--- Model Name: ", args.model_name, " ---")
     print("--- Max Sequence Length: ", max_sequence_length, " ---")
-    print("--- SP Num: ", args.sp_num, " ---")
-    print("--- SP Prompt: ", args.sp_prompt, " ---")
-    print("--- Negative Prompt Num: ", args.np_num, " ---")
-    print("--- Negative Prompt: ", args.np_prompt_path or args.np_prompt, " ---")
+    print("--- Structure Prompt Num: ", args.st_num, " ---")
+    print("--- Structure Prompt: ", args.st_prompt_path, " ---")
 
     # notify start
     mention_id = os.environ.get("SLACK_MENTION_ID")
     model_info = {
-        "SP Num": args.sp_num,
-        "SP Prompt": args.sp_prompt,
-        "Negative Prompt Num": args.np_num,
-        "Negative Prompt": args.np_prompt_path or args.np_prompt,
+        "Structure Prompt Num": args.st_num,
+        "Structure Prompt": args.st_prompt_path,
     }
     message = build_image_generation_start_message(args.model_name, model_info)
     slack_message_ts_start = slack_service.send_message(message=message, mention_id=mention_id)
@@ -144,17 +133,12 @@ if __name__ == "__main__":
     if args.image_output_dir:
         os.makedirs(args.image_output_dir, exist_ok=True)
 
-    if args.np_prompt_path:
-        with open(args.np_prompt_path, "r") as f:
-            np_data = json.load(f)
+    if args.st_prompt_path:
+        with open(args.st_prompt_path, "r") as f:
+            st_data = json.load(f)
 
-        np_dict = {}
-        for item in np_data:
-            dict_image_id = item.get("image_id")
-            dict_np = item.get("negative_prompt")
-            if dict_image_id and dict_np:
-                np_dict[dict_image_id] = dict_np
-        print("np_dict len: ", len(np_dict))
+        st_dict = {item["image_id"]: item["llm_output"] for item in st_data}
+        print("st_dict len: ", len(st_dict))
 
     with open(args.prompt_path, "r") as f:
         data = json.load(f)
@@ -164,17 +148,14 @@ if __name__ == "__main__":
         try:
             image_id = f"{temp_piece['dataset_target']}_{temp_piece['image_id']}"
             normal_prompt = temp_piece["polished_prompt"]
-            sp_positive_prompt = args.sp_prompt + "\n" + normal_prompt if args.sp_prompt and args.sp_num else normal_prompt
-
             neg_prompt = ""
-            if args.np_prompt_path and args.np_num:
-                neg_prompt = np_dict.get(image_id)
-            elif args.np_prompt and args.np_num:
-                neg_prompt = args.np_prompt
 
             prompt = normal_prompt
-            if args.sp_prompt and args.sp_num:
-                prompt = sp_positive_prompt
+            if args.st_num and args.st_prompt_path:
+                st_prompt = st_dict.get(image_id)
+                # Use the original prompt if the structured prompt does not exist
+                if st_prompt is not None:
+                    prompt = st_prompt
 
             image = pipe(
                 prompt=prompt,
