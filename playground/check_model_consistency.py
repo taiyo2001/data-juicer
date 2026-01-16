@@ -7,8 +7,8 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(current_dir, "../../.."))
 print(f"Project Root Directory: {PROJECT_ROOT}")
 sys.path.append(PROJECT_ROOT)
-GENERATED_JSON_DIR_PATH = "./outputs/image_info"
-EVALUATION_MODEL_DIR_PATH = "./playground/evaluation"
+GENERATED_JSON_DIR_PATH = "./data-juicer/outputs/image_info"
+EVALUATION_MODEL_DIR_PATH = "./data-juicer/playground/evaluation"
 # --------------------------------
 
 
