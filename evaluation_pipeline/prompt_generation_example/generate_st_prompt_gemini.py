@@ -19,16 +19,16 @@ import argparse
 def parse_args():
     parser = argparse.ArgumentParser()
     # model
-    parser.add_argument('--model_name', type=str, default="gemini-2.5-flash-lite") # or gemini-3-flash
+    parser.add_argument('--model_name', type=str, default="gemini-2.5-flash-lite") # or gemini-3-flash-preview, gemini-3-pro-preview
     parser.add_argument('--prompt_path', type=str, default="./data-juicer/DetailMaster_Dataset/DetailMaster_Dataset.json")
     parser.add_argument('--output_json', type=str, default="./output.json")
-    # parser.add_argument('--st_instruction_path', type=str, default=None)
-    parser.add_argument('--st_instruction_path', type=str, default="./data-juicer/evaluation_pipeline/prompt_generation_example/LLM_ST_PROMPT_JP.md")
-
+    parser.add_argument('--st_num', type=str, default=None)
+    parser.add_argument('--st_instruction_path', type=str, default=None)
 
     args = parser.parse_args()
 
-    args.output_json = f"./data-juicer/outputs/llm_prompt/output_st_info_{args.model_name}.json"
+    args.st_instruction_path = f"./data-juicer/evaluation_pipeline/prompt_generation_example/LLM_ST{args.st_num}_PROMPT_JP.md"
+    args.output_json = f"./data-juicer/outputs/llm_prompt/output_st{args.st_num}_info_{args.model_name}.json"
 
     return args
 
@@ -69,6 +69,8 @@ if __name__ == "__main__":
     with open(args.st_instruction_path, "r") as f:
         instruction = f.read()
 
+    total_count = len(data)
+    report_step = max(1, total_count // 10)
     valid_image_count = 0
     for temp_piece in tqdm.tqdm(data):
         try:
@@ -90,6 +92,15 @@ if __name__ == "__main__":
             new_data.append(temp_json)
 
             valid_image_count += 1
+
+            # --- noti progress ---
+            if valid_image_count % report_step == 0 and valid_image_count < total_count:
+                percentage = (valid_image_count / total_count) * 100
+                progress_message = (
+                    f" :hourglass_flowing_sand: 進捗報告: {percentage:.0f}% 完了 "
+                    f"({valid_image_count}/{total_count})\n"
+                )
+                slack_service.send_message(message=progress_message, thread_ts=slack_message_ts_start)
 
         except Exception as e:
             print(f"\n--- ERROR encountered for prompt {temp_piece['image_id']} ---")
