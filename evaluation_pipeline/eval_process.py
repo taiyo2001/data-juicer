@@ -74,12 +74,16 @@ if __name__ == "__main__":
     if args.output_log_dir:
         os.makedirs(args.output_log_dir, exist_ok=True)
 
-    yoloe_model = YOLOE(args.yoloe_model_path)
+    yoloe_model = YOLOE(args.yoloe_model_path).to("cuda")
     blip_processor = BlipProcessor.from_pretrained(args.blip_model_path)
     blip_model = BlipForImageTextRetrieval.from_pretrained(
-        args.blip_model_path, dtype=torch.float16, device_map="auto"
+        args.blip_model_path,
+        dtype=torch.float16,
+        # device_map="auto"
+    ).to("cuda")
+    pipe = pipeline(
+        args.qwen2_5_vl_model_path, backend_config=TurbomindEngineConfig(cache_max_entry_count=0.4, tp=1)
     )
-    pipe = pipeline(args.qwen2_5_vl_model_path, backend_config=TurbomindEngineConfig(cache_max_entry_count=0.1))
 
     image_info_dict = {}
     with open(args.image_info_json, "r") as f:
@@ -122,6 +126,9 @@ if __name__ == "__main__":
     scene_attrbutes_multi_image_all_count = {"background":{}, "light":{}, "style":{}, "spatial":{}}
     scene_attrbutes_multi_image_success_count = {"background":{}, "light":{}, "style":{}, "spatial":{}}
 
+    total_count = len(ann_data)
+    report_step = max(1, total_count // 10)
+    valid_image_count = 0
     for temp_piece in tqdm.tqdm(ann_data):
 
         temp_piece_image_id = temp_piece["dataset_target"] + "_" + temp_piece["image_id"]
@@ -457,18 +464,19 @@ if __name__ == "__main__":
 
 
 
-        print(object_presence_all_count)
-        print(object_presence_success_count)
+        print(f"object_presence_all_count: {object_presence_all_count}")
+        print(f"object_presence_success_count: {object_presence_success_count}")
 
-        print(character_attributes_all_count)
-        print(character_attributes_success_count)
-        print(character_attributes_detect_count)
+        print(f"character_attributes_all_count: {character_attributes_all_count}")
+        print(f"character_attributes_success_count: {character_attributes_success_count}")
+        print(f"character_attributes_detect_count: {character_attributes_detect_count}")
 
-        print(character_locations_all_count)
-        print(character_locations_success_count)
+        print(f"character_locations_all_count: {character_locations_all_count}")
+        print(f"character_locations_success_count: {character_locations_success_count}")
 
-        print(scene_attrbutes_all_count)
-        print(scene_attrbutes_success_count)
+        print(f"scene_attrbutes_all_count: {scene_attrbutes_all_count}")
+        print(f"scene_attrbutes_success_count: {scene_attrbutes_success_count}")
+        valid_image_count += 1
 
 
     overall_json = {}

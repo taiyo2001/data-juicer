@@ -21,6 +21,9 @@ import json
 import tqdm
 import argparse
 
+# ST1
+SAVE_START_THRESHOLD = None
+
 def parse_args():
     parser = argparse.ArgumentParser()
     # model
@@ -70,12 +73,14 @@ if __name__ == "__main__":
     print("--- Max Sequence Length: ", max_sequence_length, " ---")
     print("--- Structure Prompt Num: ", args.st_num, " ---")
     print("--- Structure Prompt: ", args.st_prompt_path, " ---")
+    print("--- SAVE START THRESHOLD: ", SAVE_START_THRESHOLD, " ---")
 
     # notify start
     mention_id = os.environ.get("SLACK_MENTION_ID")
     model_info = {
         "Structure Prompt Num": args.st_num,
         "Structure Prompt": args.st_prompt_path,
+        "SAVE START THRESHOLD": SAVE_START_THRESHOLD,
     }
     message = build_image_generation_start_message(args.model_name, model_info)
     slack_message_ts_start = slack_service.send_message(message=message, mention_id=mention_id)
@@ -143,6 +148,8 @@ if __name__ == "__main__":
     with open(args.prompt_path, "r") as f:
         data = json.load(f)
 
+    total_count = len(data)
+    report_step = max(1, total_count // 10)
     valid_image_count = 0
     for temp_piece in tqdm.tqdm(data):
         try:
@@ -157,18 +164,22 @@ if __name__ == "__main__":
                 if st_prompt is not None:
                     prompt = st_prompt
 
-            image = pipe(
-                prompt=prompt,
-                negative_prompt=neg_prompt,
-                width=DETAIL_MASTER.IMAGE_SIZE.LARGE,
-                height=DETAIL_MASTER.IMAGE_SIZE.LARGE,
-                num_inference_steps=num_inference_steps,
-                true_cfg_scale=1.0,
-                max_sequence_length=max_sequence_length, # default 512
-            ).images[0]
-
             image_name = f"{temp_piece['dataset_target']}_{args.model_name}_{valid_image_count}_{temp_piece['image_id']}"
-            image.save(os.path.join(args.image_output_dir, image_name))
+
+            if SAVE_START_THRESHOLD is None or valid_image_count > SAVE_START_THRESHOLD:
+                image = pipe(
+                    prompt=prompt,
+                    negative_prompt=neg_prompt,
+                    width=DETAIL_MASTER.IMAGE_SIZE.LARGE,
+                    height=DETAIL_MASTER.IMAGE_SIZE.LARGE,
+                    num_inference_steps=num_inference_steps,
+                    true_cfg_scale=1.0,
+                    max_sequence_length=max_sequence_length, # default 512
+                ).images[0]
+
+                image.save(os.path.join(args.image_output_dir, image_name))
+            else:
+                print(f"Skipping image save for index {valid_image_count} (JSON entry only)")
 
             temp_json = {}
             temp_json["output_image_name"] = image_name
@@ -177,10 +188,22 @@ if __name__ == "__main__":
 
             valid_image_count += 1
 
+            # --- noti progress ---
+            if valid_image_count % report_step == 0 and valid_image_count < total_count:
+                percentage = (valid_image_count / total_count) * 100
+                progress_message = (
+                    f" :hourglass_flowing_sand: 進捗報告: {percentage:.0f}% 完了 "
+                    f"({valid_image_count}/{total_count})\n"
+                )
+                slack_service.send_message(message=progress_message, thread_ts=slack_message_ts_start)
+
         except Exception as e:
             print(f"\n--- ERROR encountered for prompt {temp_piece['image_id']} ---")
             print(e)
             print("----------------------------------------------------------")
+            message = f":warning: ({valid_image_count})回目でエラーが発生しました: {e} for prompt ID {temp_piece['image_id']}"
+            slack_message_ts_complete = slack_service.send_message(message=message, thread_ts=slack_message_ts_start)
+            valid_image_count += 1
         # except:
         #     continue
 
