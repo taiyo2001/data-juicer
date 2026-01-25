@@ -38,6 +38,7 @@ def parse_args():
     # structure prompt
     parser.add_argument('--st_num', type=str, default=None)
     parser.add_argument('--st_prompt_path', type=str, default=None)
+    parser.add_argument('--min_token_threshold', type=str, default=None)
 
     args=parser.parse_args()
 
@@ -73,6 +74,7 @@ if __name__ == "__main__":
     print("--- Max Sequence Length: ", max_sequence_length, " ---")
     print("--- Structure Prompt Num: ", args.st_num, " ---")
     print("--- Structure Prompt: ", args.st_prompt_path, " ---")
+    print("--- MIN TOKEN THRESHOLD: ", args.min_token_threshold, " ---")
     print("--- SAVE START THRESHOLD: ", SAVE_START_THRESHOLD, " ---")
 
     # notify start
@@ -80,6 +82,7 @@ if __name__ == "__main__":
     model_info = {
         "Structure Prompt Num": args.st_num,
         "Structure Prompt": args.st_prompt_path,
+        "MIN TOKEN THRESHOLD": args.min_token_threshold,
         "SAVE START THRESHOLD": SAVE_START_THRESHOLD,
     }
     message = build_image_generation_start_message(args.model_name, model_info)
@@ -162,7 +165,20 @@ if __name__ == "__main__":
                 st_prompt = st_dict.get(image_id)
                 # Use the original prompt if the structured prompt does not exist
                 if st_prompt is not None:
-                    prompt = st_prompt
+                    if args.min_token_threshold is not None:
+                        qwen_vl = pipe.tokenizer(
+                            prompt,
+                            padding="do_not_pad", # the same as False
+                            truncation=False,
+                            add_special_tokens=True
+                        )
+                        token_count = len(qwen_vl["input_ids"])
+                        print(f"Token Count: {token_count}")
+                        if  int(args.min_token_threshold) < token_count:
+                            print(f"Using structured prompt")
+                            prompt = st_prompt
+                    else:
+                        prompt = st_prompt
 
             image_name = f"{temp_piece['dataset_target']}_{args.model_name}_{valid_image_count}_{temp_piece['image_id']}"
 
