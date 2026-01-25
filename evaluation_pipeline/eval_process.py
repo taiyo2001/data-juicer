@@ -478,6 +478,15 @@ if __name__ == "__main__":
         print(f"scene_attrbutes_success_count: {scene_attrbutes_success_count}")
         valid_image_count += 1
 
+        # --- noti progress ---
+        if valid_image_count % report_step == 0 and valid_image_count < total_count:
+            percentage = (valid_image_count / total_count) * 100
+            progress_message = (
+                f" :hourglass_flowing_sand: 進捗報告: {percentage:.0f}% 完了 "
+                f"({valid_image_count}/{total_count})\n"
+            )
+            slack_service.send_message(message=progress_message, thread_ts=slack_message_ts_start)
+
 
     overall_json = {}
     overall_json["object_presence_all_count"] = object_presence_all_count
