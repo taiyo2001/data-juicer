@@ -126,12 +126,75 @@ if __name__ == "__main__":
     scene_attrbutes_multi_image_all_count = {"background":{}, "light":{}, "style":{}, "spatial":{}}
     scene_attrbutes_multi_image_success_count = {"background":{}, "light":{}, "style":{}, "spatial":{}}
 
+    checkpoint_file = os.path.join(args.output_log_dir, f"{args.output_name_prefix}_checkpoint.json")
+    processed_image_ids = set()
+
     total_count = len(ann_data)
     report_step = max(1, total_count // 10)
     valid_image_count = 0
+
+    # ----- checkpoint -----
+    if os.path.exists(checkpoint_file):
+        print(f"--- Checkpoint found! Resuming from {checkpoint_file} ---")
+        with open(checkpoint_file, "r") as f:
+            cp = json.load(f)
+
+        valid_image_count = cp["current_valid_count"]
+        no_found_image_id = cp["no_found_image_id"]
+        new_keep_image_state = cp["detail_scores"]
+
+        # Object Presence
+        object_presence_all_count = cp["statistics"]["object_presence"]["all"]
+        object_presence_success_count = cp["statistics"]["object_presence"]["success"]
+        # object_presence_multi_image_all_count = cp["statistics"]["object_presence"]["multi_all"]
+        # object_presence_multi_image_success_count = cp["statistics"]["object_presence"]["multi_success"]
+        object_presence_multi_image_all_count = {int(k): v for k, v in cp["statistics"]["object_presence"]["multi_all"].items()}
+        object_presence_multi_image_success_count = {int(k): v for k, v in cp["statistics"]["object_presence"]["multi_success"].items()}
+
+        # Character Attributes
+        character_attributes_all_count = cp["statistics"]["character_attributes"]["all"]
+        character_attributes_success_count = cp["statistics"]["character_attributes"]["success"]
+        character_attributes_detect_count = cp["statistics"]["character_attributes"]["detect"]
+        # character_attributes_multi_image_all_count = cp["statistics"]["character_attributes"]["multi_all"]
+        # character_attributes_multi_image_success_count = cp["statistics"]["character_attributes"]["multi_success"]
+        # character_attributes_multi_image_detect_count = cp["statistics"]["character_attributes"]["multi_detect"]
+        character_attributes_multi_image_all_count = {int(k): v for k, v in cp["statistics"]["character_attributes"]["multi_all"].items()}
+        character_attributes_multi_image_success_count = {int(k): v for k, v in cp["statistics"]["character_attributes"]["multi_success"].items()}
+        character_attributes_multi_image_detect_count = {int(k): v for k, v in cp["statistics"]["character_attributes"]["multi_detect"].items()}
+
+        # Character Locations
+        character_locations_all_count = cp["statistics"]["character_locations"]["all"]
+        character_locations_success_count = cp["statistics"]["character_locations"]["success"]
+        # character_locations_multi_image_all_count = cp["statistics"]["character_locations"]["multi_all"]
+        # character_locations_multi_image_success_count = cp["statistics"]["character_locations"]["multi_success"]
+        character_locations_multi_image_all_count = {int(k): v for k, v in cp["statistics"]["character_locations"]["multi_all"].items()}
+        character_locations_multi_image_success_count = {int(k): v for k, v in cp["statistics"]["character_locations"]["multi_success"].items()}
+
+        # Scene Attributes
+        scene_attrbutes_all_count = cp["statistics"]["scene_attributes"]["all"]
+        scene_attrbutes_success_count = cp["statistics"]["scene_attributes"]["success"]
+        # scene_attrbutes_multi_image_all_count = cp["statistics"]["scene_attributes"]["multi_all"]
+        # scene_attrbutes_multi_image_success_count = cp["statistics"]["scene_attributes"]["multi_success"]
+        scene_attrbutes_multi_image_all_count = {
+            attr: {int(k): v for k, v in multi_dict.items()}
+            for attr, multi_dict in cp["statistics"]["scene_attributes"]["multi_all"].items()
+        }
+        scene_attrbutes_multi_image_success_count = {
+            attr: {int(k): v for k, v in multi_dict.items()}
+            for attr, multi_dict in cp["statistics"]["scene_attributes"]["multi_success"].items()
+        }
+
+        for state in new_keep_image_state:
+            processed_image_ids.add(state["prompt_info"]["dataset_target"] + "_" + state["prompt_info"]["image_id"])
+
+        print(f"--- Resuming from {len(processed_image_ids)} processed prompts ---")
+    # ----------------------
+
     for temp_piece in tqdm.tqdm(ann_data):
 
         temp_piece_image_id = temp_piece["dataset_target"] + "_" + temp_piece["image_id"]
+        if temp_piece_image_id in processed_image_ids:
+            continue
 
         if not temp_piece_image_id in image_info_dict:
             print("no found image id: ", temp_piece_image_id)
@@ -478,14 +541,53 @@ if __name__ == "__main__":
         print(f"scene_attrbutes_success_count: {scene_attrbutes_success_count}")
         valid_image_count += 1
 
-        # --- noti progress ---
+        # --- checkpoint & noti progress ---
         if valid_image_count % report_step == 0 and valid_image_count < total_count:
+            checkpoint_data = {
+                "current_valid_count": valid_image_count,
+                "statistics": {
+                    "object_presence": {
+                        "all": object_presence_all_count,
+                        "success": object_presence_success_count,
+                        "multi_all": object_presence_multi_image_all_count,
+                        "multi_success": object_presence_multi_image_success_count
+                    },
+                    "character_attributes": {
+                        "all": character_attributes_all_count,
+                        "success": character_attributes_success_count,
+                        "detect": character_attributes_detect_count,
+                        "multi_all": character_attributes_multi_image_all_count,
+                        "multi_success": character_attributes_multi_image_success_count,
+                        "multi_detect": character_attributes_multi_image_detect_count
+                    },
+                    "character_locations": {
+                        "all": character_locations_all_count,
+                        "success": character_locations_success_count,
+                        "multi_all": character_locations_multi_image_all_count,
+                        "multi_success": character_locations_multi_image_success_count
+                    },
+                    "scene_attributes": {
+                        "all": scene_attrbutes_all_count,
+                        "success": scene_attrbutes_success_count,
+                        "multi_all": scene_attrbutes_multi_image_all_count,
+                        "multi_success": scene_attrbutes_multi_image_success_count
+                    }
+                },
+                "detail_scores": new_keep_image_state,
+                "no_found_image_id": no_found_image_id
+            }
+
+            with open(checkpoint_file, "w") as f:
+                json.dump(checkpoint_data, f, indent=4)
+            print(f"\nCheckpoint saved to {checkpoint_file}")
+
             percentage = (valid_image_count / total_count) * 100
             progress_message = (
                 f" :hourglass_flowing_sand: 進捗報告: {percentage:.0f}% 完了 "
                 f"({valid_image_count}/{total_count})\n"
             )
             slack_service.send_message(message=progress_message, thread_ts=slack_message_ts_start)
+        # ----------------------------------
 
 
     overall_json = {}
