@@ -28,6 +28,7 @@ def parse_args():
     parser.add_argument('--output_json', type=str, default="./output.json")
     parser.add_argument('--image_output_dir', type=str, default="./output_image/")
     parser.add_argument('--count', type=str, default=None)
+    parser.add_argument('--save_start_threshold', type=int, default=None)
     # in-context learning
     parser.add_argument('--sp_num', type=str, default=None)
     parser.add_argument('--sp_prompt', type=str, default=None)
@@ -124,6 +125,7 @@ if __name__ == "__main__":
     print("--- Dense Prompt Num: ", args.dp_num, " ---")
     print("--- Dense Prompt: ", args.dp_prompt_path, " ---")
     print(f"--- Dense Prompt Adaption: CLIP: {args.dp_clip}, T5: {args.dp_t5} ---")
+    print("--- SAVE START THRESHOLD: ", args.save_start_threshold, " ---")
 
     # notify start
     mention_id = os.environ.get("SLACK_MENTION_ID")
@@ -137,6 +139,7 @@ if __name__ == "__main__":
         "Dense Prompt Num": args.dp_num,
         "Dense Prompt": args.dp_prompt_path,
         "Dense Prompt Adaption": f"CLIP: {args.dp_clip}, T5: {args.dp_t5}",
+        "SAVE START THRESHOLD": args.save_start_threshold,
     }
     message = build_image_generation_start_message(args.model_name, model_info)
     slack_message_ts_start = slack_service.send_message(message=message, mention_id=mention_id)
@@ -213,6 +216,7 @@ if __name__ == "__main__":
     for temp_piece in tqdm.tqdm(data):
         try:
             image_id = f"{temp_piece['dataset_target']}_{temp_piece['image_id']}"
+            image_name = f"{temp_piece['dataset_target']}_{args.model_name}_{valid_image_count}_{temp_piece['image_id']}"
             normal_prompt = temp_piece["polished_prompt"]
             sp_positive_prompt = args.sp_prompt + "\n" + normal_prompt if args.sp_prompt and args.sp_num else normal_prompt
 
@@ -230,77 +234,79 @@ if __name__ == "__main__":
                 else:
                     print("No Dense Prompt found for ", image_id)
 
-            if prompt_weighting:
-                # normal
-                prompt = normal_prompt
-                llm_prompt = None
-                # -- SP ---
-                if args.sp_prompt and args.sp_num:
-                    if args.sp_t5_only:
-                        llm_prompt = sp_positive_prompt
-                    else:
+            if args.save_start_threshold is None or valid_image_count > args.save_start_threshold:
+                if prompt_weighting:
+                    # normal
+                    prompt = normal_prompt
+                    llm_prompt = None
+                    # -- SP ---
+                    if args.sp_prompt and args.sp_num:
+                        if args.sp_t5_only:
+                            llm_prompt = sp_positive_prompt
+                        else:
+                            prompt = sp_positive_prompt
+                    # -- DP ---
+                    if args.dp_prompt_path and args.dp_num and dense_prompt is not None:
+                        if args.dp_clip and args.dp_t5:
+                            print("Adapt Dense Prompt Both CLIP and T5")
+                            prompt = dense_prompt
+                            llm_prompt = dense_prompt
+                        elif args.dp_clip:
+                            print("Adapt Dense Prompt CLIP")
+                            prompt = dense_prompt
+                            llm_prompt = normal_prompt
+                        elif args.dp_t5:
+                            print("Adapt Dense Prompt T5")
+                            prompt = normal_prompt
+                            llm_prompt = dense_prompt
+
+                    (prompt_embeds, prompt_neg_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds) = get_weighted_text_embeddings_sd3(
+                        pipe,
+                        prompt=prompt,
+                        llm_prompt=llm_prompt,
+                        neg_prompt=neg_prompt,
+                        extend_clip=extend_clip,
+                        extend_t5=exted_t5,
+                        t5_max_length=max_sequence_length,
+                    )
+                    image = pipe(
+                        prompt_embeds=prompt_embeds,
+                        negative_prompt_embeds=prompt_neg_embeds,
+                        pooled_prompt_embeds=pooled_prompt_embeds,
+                        negative_pooled_prompt_embeds=negative_pooled_prompt_embeds,
+                        height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                        width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                        num_inference_steps=num_inference_steps,
+                        max_sequence_length=max_sequence_length,
+                        guidance_scale=guidance_scale,
+                    ).images[0]
+
+                    # image = pipe(
+                    #     prompt,
+                    #     negative_prompt=neg_prompt,
+                    #     height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                    #     width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                    #     num_inference_steps=num_inference_steps,
+                    #     max_sequence_length=max_sequence_length,
+                    #     guidance_scale=guidance_scale,
+                    # ).images[0]
+                else:
+                    prompt = normal_prompt
+                    if args.sp_prompt and args.sp_num:
                         prompt = sp_positive_prompt
-                # -- DP ---
-                if args.dp_prompt_path and args.dp_num and dense_prompt is not None:
-                    if args.dp_clip and args.dp_t5:
-                        print("Adapt Dense Prompt Both CLIP and T5")
-                        prompt = dense_prompt
-                        llm_prompt = dense_prompt
-                    elif args.dp_clip:
-                        print("Adapt Dense Prompt CLIP")
-                        prompt = dense_prompt
-                        llm_prompt = normal_prompt
-                    elif args.dp_t5:
-                        print("Adapt Dense Prompt T5")
-                        prompt = normal_prompt
-                        llm_prompt = dense_prompt
 
-                (prompt_embeds, prompt_neg_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds) = get_weighted_text_embeddings_sd3(
-                    pipe,
-                    prompt=prompt,
-                    llm_prompt=llm_prompt,
-                    neg_prompt=neg_prompt,
-                    extend_clip=extend_clip,
-                    extend_t5=exted_t5,
-                    t5_max_length=max_sequence_length,
-                )
-                image = pipe(
-                    prompt_embeds=prompt_embeds,
-                    negative_prompt_embeds=prompt_neg_embeds,
-                    pooled_prompt_embeds=pooled_prompt_embeds,
-                    negative_pooled_prompt_embeds=negative_pooled_prompt_embeds,
-                    height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
-                    width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
-                    num_inference_steps=num_inference_steps,
-                    max_sequence_length=max_sequence_length,
-                    guidance_scale=guidance_scale,
-                ).images[0]
+                    image = pipe(
+                        prompt,
+                        height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                        width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                        num_inference_steps=num_inference_steps,
+                        max_sequence_length=max_sequence_length,
+                        guidance_scale=guidance_scale,
+                    ).images[0]
 
-                # image = pipe(
-                #     prompt,
-                #     negative_prompt=neg_prompt,
-                #     height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
-                #     width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
-                #     num_inference_steps=num_inference_steps,
-                #     max_sequence_length=max_sequence_length,
-                #     guidance_scale=guidance_scale,
-                # ).images[0]
+                image.save(os.path.join(args.image_output_dir, image_name))
             else:
-                prompt = normal_prompt
-                if args.sp_prompt and args.sp_num:
-                    prompt = sp_positive_prompt
-
-                image = pipe(
-                    prompt,
-                    height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
-                    width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
-                    num_inference_steps=num_inference_steps,
-                    max_sequence_length=max_sequence_length,
-                    guidance_scale=guidance_scale,
-                ).images[0]
-
-            image_name = f"{temp_piece['dataset_target']}_{args.model_name}_{valid_image_count}_{temp_piece['image_id']}"
-            image.save(os.path.join(args.image_output_dir, image_name))
+                print(f"Skipping image save for index {valid_image_count} (JSON entry only)")
 
             temp_json = {}
             temp_json["output_image_name"] = image_name

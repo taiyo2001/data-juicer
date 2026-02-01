@@ -21,9 +21,6 @@ import json
 import tqdm
 import argparse
 
-# ST1
-SAVE_START_THRESHOLD = None
-
 def parse_args():
     parser = argparse.ArgumentParser()
     # model
@@ -35,6 +32,7 @@ def parse_args():
     parser.add_argument('--output_json', type=str, default="./output.json")
     parser.add_argument('--image_output_dir', type=str, default="./output_image/")
     parser.add_argument('--count', type=str, default=None)
+    parser.add_argument('--save_start_threshold', type=int, default=None)
     # structure prompt
     parser.add_argument('--st_num', type=str, default=None)
     parser.add_argument('--st_prompt_path', type=str, default=None)
@@ -75,7 +73,7 @@ if __name__ == "__main__":
     print("--- Structure Prompt Num: ", args.st_num, " ---")
     print("--- Structure Prompt: ", args.st_prompt_path, " ---")
     print("--- MIN TOKEN THRESHOLD: ", args.min_token_threshold, " ---")
-    print("--- SAVE START THRESHOLD: ", SAVE_START_THRESHOLD, " ---")
+    print("--- SAVE START THRESHOLD: ", args.save_start_threshold, " ---")
 
     # notify start
     mention_id = os.environ.get("SLACK_MENTION_ID")
@@ -83,7 +81,7 @@ if __name__ == "__main__":
         "Structure Prompt Num": args.st_num,
         "Structure Prompt": args.st_prompt_path,
         "MIN TOKEN THRESHOLD": args.min_token_threshold,
-        "SAVE START THRESHOLD": SAVE_START_THRESHOLD,
+        "SAVE START THRESHOLD": args.save_start_threshold,
     }
     message = build_image_generation_start_message(args.model_name, model_info)
     slack_message_ts_start = slack_service.send_message(message=message, mention_id=mention_id)
@@ -157,6 +155,7 @@ if __name__ == "__main__":
     for temp_piece in tqdm.tqdm(data):
         try:
             image_id = f"{temp_piece['dataset_target']}_{temp_piece['image_id']}"
+            image_name = f"{temp_piece['dataset_target']}_{args.model_name}_{valid_image_count}_{temp_piece['image_id']}"
             normal_prompt = temp_piece["polished_prompt"]
             neg_prompt = ""
 
@@ -180,9 +179,7 @@ if __name__ == "__main__":
                     else:
                         prompt = st_prompt
 
-            image_name = f"{temp_piece['dataset_target']}_{args.model_name}_{valid_image_count}_{temp_piece['image_id']}"
-
-            if SAVE_START_THRESHOLD is None or valid_image_count > SAVE_START_THRESHOLD:
+            if args.save_start_threshold is None or valid_image_count > args.save_start_threshold:
                 image = pipe(
                     prompt=prompt,
                     negative_prompt=neg_prompt,
