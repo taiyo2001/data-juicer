@@ -193,401 +193,412 @@ if __name__ == "__main__":
     for temp_piece in tqdm.tqdm(ann_data):
 
         temp_piece_image_id = temp_piece["dataset_target"] + "_" + temp_piece["image_id"]
-        if temp_piece_image_id in processed_image_ids:
-            continue
 
-        if not temp_piece_image_id in image_info_dict:
-            print("no found image id: ", temp_piece_image_id)
-            no_found_image_id.append(temp_piece_image_id)
-            print("next 1")
-            continue
+        try:
+            if temp_piece_image_id in processed_image_ids:
+                continue
 
-        now_prompt_image_info = image_info_dict[temp_piece_image_id]
+            if not temp_piece_image_id in image_info_dict:
+                print("no found image id: ", temp_piece_image_id)
+                no_found_image_id.append(temp_piece_image_id)
+                print("next 1")
+                continue
 
-        valid_character_list = []
-        for temp_character in temp_piece["character_attributes"]:
-            valid_character_list.append(temp_character["main_character"])
+            now_prompt_image_info = image_info_dict[temp_piece_image_id]
 
-        for temp_character in temp_piece["character_locations"]:
-            if not temp_character["main_character"] in valid_character_list:
+            valid_character_list = []
+            for temp_character in temp_piece["character_attributes"]:
                 valid_character_list.append(temp_character["main_character"])
 
+            for temp_character in temp_piece["character_locations"]:
+                if not temp_character["main_character"] in valid_character_list:
+                    valid_character_list.append(temp_character["main_character"])
 
-        for temp_image_name_id, temp_image_name in enumerate(now_prompt_image_info):
 
-            try:
-                now_image = Image.open(os.path.join(args.image_folder, temp_image_name))
-            except:
-                no_found_image_id.append(temp_piece_image_id)
-                continue
-            image_size, _ = now_image.size
-            temp_image_state = {}
-            temp_image_state["temp_image_name"] = temp_image_name
-            temp_image_state["temp_image_id"] = temp_image_name_id
-            temp_image_state["prompt_info"] = temp_piece
-
-            # object presence
-            valid_character_list_bbox = {}
-
-            for temp_character in valid_character_list:
-                names = [temp_character]
-                yoloe_model.set_classes(names, yoloe_model.get_text_pe(names))
-                try:
-                    results = yoloe_model.predict(os.path.join(args.image_folder, temp_image_name), verbose=False)
-                except:
-                    Image.open(os.path.join(args.image_folder, temp_image_name)).convert("RGB").save(os.path.join(args.image_folder, temp_image_name))
-                    results = yoloe_model.predict(os.path.join(args.image_folder, temp_image_name), verbose=False)
-                yoloe_bboxes = results[0].boxes.xyxy.tolist()
-
-                if len(yoloe_bboxes) == 0:
-                    valid_character_list_bbox[temp_character] = None
-                    continue
-                yoloe_bbox = [0,0,0,0]
-                yoloe_bbox[0] = int(yoloe_bboxes[0][0])
-                yoloe_bbox[1] = int(yoloe_bboxes[0][1])
-                yoloe_bbox[2] = math.ceil(yoloe_bboxes[0][2])
-                yoloe_bbox[3] = math.ceil(yoloe_bboxes[0][3])
-
-                image = load_image(os.path.join(args.image_folder, temp_image_name))
-                prompt = "Please only provide the bounding box coordinate (as a list) of the region \"" + temp_character + "\" describes. Do not include any JSON formatting or additional text in the response."
-                output_text = pipe((prompt, image))
-                output_text = output_text.text
+            for temp_image_name_id, temp_image_name in enumerate(now_prompt_image_info):
 
                 try:
-                    output_text = output_text.replace("json", "").replace("```", "")
-                    llm_bbox = eval(output_text)
-                    temp_iou, area1, area2 = iou_cal(yoloe_bbox, llm_bbox)
+                    now_image = Image.open(os.path.join(args.image_folder, temp_image_name))
                 except:
-                    valid_character_list_bbox[temp_character] = None
+                    no_found_image_id.append(temp_piece_image_id)
                     continue
+                image_size, _ = now_image.size
+                temp_image_state = {}
+                temp_image_state["temp_image_name"] = temp_image_name
+                temp_image_state["temp_image_id"] = temp_image_name_id
+                temp_image_state["prompt_info"] = temp_piece
 
+                # object presence
+                valid_character_list_bbox = {}
 
-                if temp_iou > 0.7:
-                    if area1 > area2:
-                        valid_character_list_bbox[temp_character] = yoloe_bbox
-                    else:
-                        valid_character_list_bbox[temp_character] = llm_bbox
-                else:
+                for temp_character in valid_character_list:
+                    names = [temp_character]
+                    yoloe_model.set_classes(names, yoloe_model.get_text_pe(names))
                     try:
-                        yoloe_bbox_crop_img = now_image.crop(yoloe_bbox)
-                        llm_bbox_crop_img = now_image.crop(llm_bbox)
-                        image_pair = [yoloe_bbox_crop_img, llm_bbox_crop_img]
-                        blip_process_input = blip_processor(image_pair, [temp_character["main_character"]], return_tensors="pt", padding=True).to(blip_model.device)
+                        results = yoloe_model.predict(os.path.join(args.image_folder, temp_image_name), verbose=False)
                     except:
+                        Image.open(os.path.join(args.image_folder, temp_image_name)).convert("RGB").save(os.path.join(args.image_folder, temp_image_name))
+                        results = yoloe_model.predict(os.path.join(args.image_folder, temp_image_name), verbose=False)
+                    yoloe_bboxes = results[0].boxes.xyxy.tolist()
+
+                    if len(yoloe_bboxes) == 0:
                         valid_character_list_bbox[temp_character] = None
                         continue
-                    cosine_score = blip_model(pixel_values=blip_process_input['pixel_values'], input_ids=blip_process_input['input_ids'], attention_mask=blip_process_input['attention_mask'], use_itm_head=False).itm_score
+                    yoloe_bbox = [0,0,0,0]
+                    yoloe_bbox[0] = int(yoloe_bboxes[0][0])
+                    yoloe_bbox[1] = int(yoloe_bboxes[0][1])
+                    yoloe_bbox[2] = math.ceil(yoloe_bboxes[0][2])
+                    yoloe_bbox[3] = math.ceil(yoloe_bboxes[0][3])
 
-                    # if cosine_score[0] < 0.4 and cosine_score[1] < 0.4:
-                    #     valid_character_list_bbox[temp_character] = None
-                    #     continue
-
-                    if cosine_score[0] > cosine_score[1]:
-                        valid_character_list_bbox[temp_character] = yoloe_bbox
-                    else:
-                        valid_character_list_bbox[temp_character] = llm_bbox
-
-
-            # character attributes
-            temp_image_state["character_attributes_detail_score"] = []
-            valid_character_list_character_attributes = {}
-            detected_character_s_attribute_num = {}
-            temp_character_attributes = temp_piece["character_attributes"]
-            temp_character_attributes_dict = {}
-            temp_character_cls_dict = {}
-            for temp_character_attributes_piece in temp_character_attributes:
-                temp_character_attributes_dict[temp_character_attributes_piece["main_character"]] = temp_character_attributes_piece["characteristics_list"]
-                temp_character_cls_dict[temp_character_attributes_piece["main_character"]] = temp_character_attributes_piece["cls"]
-
-            for temp_character in valid_character_list_bbox:
-                if not temp_character in temp_character_attributes_dict:
-                    continue
-                now_character_attribute = temp_character_attributes_dict[temp_character]
-                valid_character_list_character_attributes[temp_character] = 0
-
-                temp_character_attributes_detail_score_json = {}
-                temp_character_attributes_detail_score_json["main_character"] = temp_character
-                temp_character_attributes_detail_score_json["attributes_list"] = []
-
-                if valid_character_list_bbox[temp_character] == None:
-                    for temp_attribute_piece in now_character_attribute:
-                        temp_character_attributes_detail_score_json["attributes_list"].append({"attribute": temp_attribute_piece, "score": 0})
-                    temp_image_state["character_attributes_detail_score"].append(temp_character_attributes_detail_score_json)
-                    continue
-
-                try:
-                    crop_img = now_image.crop(valid_character_list_bbox[temp_character])
-                except:
-                    for temp_attribute_piece in now_character_attribute:
-                        temp_character_attributes_detail_score_json["attributes_list"].append({"attribute": temp_attribute_piece, "score": 0})
-                    temp_image_state["character_attributes_detail_score"].append(temp_character_attributes_detail_score_json)
-                    continue
-
-                if temp_character_cls_dict[temp_character] not in detected_character_s_attribute_num:
-                    detected_character_s_attribute_num[temp_character_cls_dict[temp_character]] = len(now_character_attribute)
-                else:
-                    detected_character_s_attribute_num[temp_character_cls_dict[temp_character]] += len(now_character_attribute)
-
-
-                temp_attribute_count = 0
-                for temp_attribute_piece in now_character_attribute:
-                    prompt = "Please analyze the main character in this image, specifically the \"" + temp_character + "\". Please determine whether \"" + temp_attribute_piece + "\" is one of its characteristics or is associated with it. Please only respond with 'yes' or 'no'."
-                    output_text = pipe((prompt, crop_img))
-                    output_text = output_text.text
-
-                    if 'yes' in output_text.lower():
-                        valid_character_list_character_attributes[temp_character] += 1
-                        temp_character_attributes_detail_score_json["attributes_list"].append({"attribute": temp_attribute_piece, "score": 1})
-                    else:
-                        temp_character_attributes_detail_score_json["attributes_list"].append({"attribute": temp_attribute_piece, "score": 0})
-                temp_image_state["character_attributes_detail_score"].append(temp_character_attributes_detail_score_json)
-
-
-
-            # character locations
-            valid_character_temp_character_locations = {}
-            temp_character_locations = temp_piece["character_locations"]
-            temp_character_locations_dict = {}
-            for temp_character_locations_piece in temp_character_locations:
-                temp_character_locations_dict[temp_character_locations_piece["main_character"]] = temp_character_locations_piece["position"]
-
-            for temp_character in valid_character_list_bbox:
-                if not temp_character in temp_character_locations_dict:
-                    continue
-                valid_character_temp_character_locations[temp_character] = 0
-
-                if valid_character_list_bbox[temp_character] == None:
-                    continue
-
-                bbox_img = now_image.copy()
-                draw = ImageDraw.Draw(bbox_img)
-                try:
-                    draw.rectangle(valid_character_list_bbox[temp_character], outline="red", width=5)
-                except:
-                    continue
-
-                norm_bbox = [0,0,0,0]
-                norm_bbox[0] = round(valid_character_list_bbox[temp_character][0]/image_size, 2)
-                norm_bbox[1] = round(valid_character_list_bbox[temp_character][1]/image_size, 2)
-                norm_bbox[2] = round(valid_character_list_bbox[temp_character][2]/image_size, 2)
-                norm_bbox[3] = round(valid_character_list_bbox[temp_character][3]/image_size, 2)
-                prompt = "Analyze whether the character \"" + temp_character + "\" (marked with a red bounding box at coordinates " + str(norm_bbox) + ") is located in " + temp_character_locations_dict[temp_character].lower() + ". Please only respond with 'yes' or 'no'."
-                output_text = pipe((prompt, bbox_img))
-                output_text = output_text.text
-
-                if 'yes' in output_text.lower():
-                    valid_character_temp_character_locations[temp_character] = 1
-
-
-            # print(valid_character_list_bbox)
-            # object presence stastic
-            temp_image_state["object_presence_all"] = 0
-            temp_image_state["object_presence_success"] = 0
-            if not temp_image_name_id in object_presence_multi_image_all_count:
-                object_presence_multi_image_all_count[temp_image_name_id] = 0
-                object_presence_multi_image_success_count[temp_image_name_id] = 0
-
-            temp_image_state["object_presence_all"] += len(valid_character_list_bbox)
-            object_presence_all_count += len(valid_character_list_bbox)
-            object_presence_multi_image_all_count[temp_image_name_id] += len(valid_character_list_bbox)
-            for temp_character in valid_character_list_bbox:
-                if not valid_character_list_bbox[temp_character] == None:
-                    object_presence_success_count += 1
-                    object_presence_multi_image_success_count[temp_image_name_id] += 1
-                    temp_image_state["object_presence_success"] += 1
-
-
-            # print(valid_character_list_character_attributes)
-            # character attribute stastic
-            temp_image_state["character_attribute_all"] = {}
-            temp_image_state["character_attribute_success"] = {}
-            temp_image_state["detected_character_s_attribute_num"] = detected_character_s_attribute_num
-            if not temp_image_name_id in character_attributes_multi_image_all_count:
-                character_attributes_multi_image_all_count[temp_image_name_id] = {}
-                character_attributes_multi_image_success_count[temp_image_name_id] = {}
-                character_attributes_multi_image_detect_count[temp_image_name_id] = {}
-
-            for temp_detect_chharacter_cls in detected_character_s_attribute_num:
-                if not temp_detect_chharacter_cls in character_attributes_detect_count:
-                    character_attributes_detect_count[temp_detect_chharacter_cls] = 0
-                character_attributes_detect_count[temp_detect_chharacter_cls] += detected_character_s_attribute_num[temp_detect_chharacter_cls]
-
-                if not temp_detect_chharacter_cls in character_attributes_multi_image_detect_count[temp_image_name_id]:
-                    character_attributes_multi_image_detect_count[temp_image_name_id][temp_detect_chharacter_cls] = 0
-                character_attributes_multi_image_detect_count[temp_image_name_id][temp_detect_chharacter_cls] += detected_character_s_attribute_num[temp_detect_chharacter_cls]
-
-            for temp_character in temp_character_attributes_dict:
-                if not temp_character_cls_dict[temp_character] in character_attributes_all_count:
-                    character_attributes_all_count[temp_character_cls_dict[temp_character]] = 0
-                character_attributes_all_count[temp_character_cls_dict[temp_character]] += len(temp_character_attributes_dict[temp_character])
-
-                if not temp_character_cls_dict[temp_character] in temp_image_state["character_attribute_all"]:
-                    temp_image_state["character_attribute_all"][temp_character_cls_dict[temp_character]] = 0
-                temp_image_state["character_attribute_all"][temp_character_cls_dict[temp_character]] += len(temp_character_attributes_dict[temp_character])
-
-                if not temp_character_cls_dict[temp_character] in character_attributes_multi_image_all_count[temp_image_name_id]:
-                    character_attributes_multi_image_all_count[temp_image_name_id][temp_character_cls_dict[temp_character]] = 0
-                character_attributes_multi_image_all_count[temp_image_name_id][temp_character_cls_dict[temp_character]] += len(temp_character_attributes_dict[temp_character])
-
-            for temp_character in valid_character_list_character_attributes:
-                if not temp_character_cls_dict[temp_character] in character_attributes_success_count:
-                    character_attributes_success_count[temp_character_cls_dict[temp_character]] = 0
-                character_attributes_success_count[temp_character_cls_dict[temp_character]] += valid_character_list_character_attributes[temp_character]
-
-                if not temp_character_cls_dict[temp_character] in temp_image_state["character_attribute_success"]:
-                    temp_image_state["character_attribute_success"][temp_character_cls_dict[temp_character]] = 0
-                temp_image_state["character_attribute_success"][temp_character_cls_dict[temp_character]] += valid_character_list_character_attributes[temp_character]
-
-                if not temp_character_cls_dict[temp_character] in character_attributes_multi_image_success_count[temp_image_name_id]:
-                    character_attributes_multi_image_success_count[temp_image_name_id][temp_character_cls_dict[temp_character]] = 0
-                character_attributes_multi_image_success_count[temp_image_name_id][temp_character_cls_dict[temp_character]] += valid_character_list_character_attributes[temp_character]
-
-
-            # print(valid_character_temp_character_locations)
-            # character locations stastic
-            temp_image_state["character_location_all"] = 0
-            temp_image_state["character_location_success"] = 0
-            if not temp_image_name_id in character_locations_multi_image_all_count:
-                character_locations_multi_image_all_count[temp_image_name_id] = 0
-                character_locations_multi_image_success_count[temp_image_name_id] = 0
-
-            character_locations_all_count += len(temp_character_locations_dict)
-            character_locations_multi_image_all_count[temp_image_name_id] += len(temp_character_locations_dict)
-            temp_image_state["character_location_all"] += len(temp_character_locations_dict)
-
-            for temp_character in valid_character_temp_character_locations:
-                character_locations_success_count += valid_character_temp_character_locations[temp_character]
-                character_locations_multi_image_success_count[temp_image_name_id] += valid_character_temp_character_locations[temp_character]
-                temp_image_state["character_location_success"] += valid_character_temp_character_locations[temp_character]
-
-
-            # scene attributes
-            temp_image_state["scene_attributes_all"] = {"background":0, "light":0, "style":0, "spatial":0}
-            temp_image_state["scene_attributes_success"] = {"background":0, "light":0, "style":0, "spatial":0}
-            for temp_scene_attribute in temp_piece["scene_attributes"]:
-                if not temp_scene_attribute["scene_attribute"] == "spatial":
                     image = load_image(os.path.join(args.image_folder, temp_image_name))
-                    prompt = "Analyze whether the " + temp_scene_attribute["scene_attribute"] + " condition in this image match the following description: \"" + temp_scene_attribute["content"] +"\". Please only respond with 'yes' or 'no'."
+                    prompt = "Please only provide the bounding box coordinate (as a list) of the region \"" + temp_character + "\" describes. Do not include any JSON formatting or additional text in the response."
                     output_text = pipe((prompt, image))
                     output_text = output_text.text
 
-                    scene_attrbutes_all_count[temp_scene_attribute["scene_attribute"]] += 1
-                    temp_image_state["scene_attributes_all"][temp_scene_attribute["scene_attribute"]] += 1
-                    if not temp_image_name_id in scene_attrbutes_multi_image_all_count[temp_scene_attribute["scene_attribute"]]:
-                        scene_attrbutes_multi_image_all_count[temp_scene_attribute["scene_attribute"]][temp_image_name_id] = 0
-                        scene_attrbutes_multi_image_success_count[temp_scene_attribute["scene_attribute"]][temp_image_name_id] = 0
-                    scene_attrbutes_multi_image_all_count[temp_scene_attribute["scene_attribute"]][temp_image_name_id] += 1
-
-                    if 'yes' in output_text.lower():
-                        scene_attrbutes_success_count[temp_scene_attribute["scene_attribute"]] += 1
-                        scene_attrbutes_multi_image_success_count[temp_scene_attribute["scene_attribute"]][temp_image_name_id] += 1
-                        temp_image_state["scene_attributes_success"][temp_scene_attribute["scene_attribute"]] += 1
-
-                else:
-                    for temp_spatial in temp_scene_attribute["content"]:
-                        bbox_img = now_image.copy()
-                        draw = ImageDraw.Draw(bbox_img)
-                        add_character_str = ""
-                        for temp_contain_character_id, temp_contain_character in enumerate(valid_character_list_bbox):
-                            if valid_character_list_bbox[temp_contain_character] == None:
-                                continue
-
-                            try:
-                                draw.rectangle(valid_character_list_bbox[temp_contain_character], outline="red", width=5)
-                            except:
-                                continue
-
-                            if not add_character_str == "":
-                                add_character_str += ", "
-                            add_character_str += "\"" + temp_contain_character + "\""
+                    try:
+                        output_text = output_text.replace("json", "").replace("```", "")
+                        llm_bbox = eval(output_text)
+                        temp_iou, area1, area2 = iou_cal(yoloe_bbox, llm_bbox)
+                    except:
+                        valid_character_list_bbox[temp_character] = None
+                        continue
 
 
-                        if add_character_str == "":
-                            output_text = "no"
+                    if temp_iou > 0.7:
+                        if area1 > area2:
+                            valid_character_list_bbox[temp_character] = yoloe_bbox
                         else:
-                            prompt = "The provided image contains only characters: " + add_character_str + " (highlighted with red bounding boxes). Analyze whether the spatial condition in this image match the following description: \"" + temp_spatial +"\". Please only respond with 'yes' or 'no'."
-                            output_text = pipe((prompt, bbox_img))
-                            output_text = output_text.text
+                            valid_character_list_bbox[temp_character] = llm_bbox
+                    else:
+                        try:
+                            yoloe_bbox_crop_img = now_image.crop(yoloe_bbox)
+                            llm_bbox_crop_img = now_image.crop(llm_bbox)
+                            image_pair = [yoloe_bbox_crop_img, llm_bbox_crop_img]
+                            blip_process_input = blip_processor(image_pair, [temp_character["main_character"]], return_tensors="pt", padding=True).to(blip_model.device)
+                        except:
+                            valid_character_list_bbox[temp_character] = None
+                            continue
+                        cosine_score = blip_model(pixel_values=blip_process_input['pixel_values'], input_ids=blip_process_input['input_ids'], attention_mask=blip_process_input['attention_mask'], use_itm_head=False).itm_score
 
-                        scene_attrbutes_all_count["spatial"] += 1
-                        temp_image_state["scene_attributes_all"]["spatial"] += 1
-                        if not temp_image_name_id in scene_attrbutes_multi_image_all_count["spatial"]:
-                            scene_attrbutes_multi_image_all_count["spatial"][temp_image_name_id] = 0
-                            scene_attrbutes_multi_image_success_count["spatial"][temp_image_name_id] = 0
-                        scene_attrbutes_multi_image_all_count["spatial"][temp_image_name_id] += 1
+                        # if cosine_score[0] < 0.4 and cosine_score[1] < 0.4:
+                        #     valid_character_list_bbox[temp_character] = None
+                        #     continue
+
+                        if cosine_score[0] > cosine_score[1]:
+                            valid_character_list_bbox[temp_character] = yoloe_bbox
+                        else:
+                            valid_character_list_bbox[temp_character] = llm_bbox
+
+
+                # character attributes
+                temp_image_state["character_attributes_detail_score"] = []
+                valid_character_list_character_attributes = {}
+                detected_character_s_attribute_num = {}
+                temp_character_attributes = temp_piece["character_attributes"]
+                temp_character_attributes_dict = {}
+                temp_character_cls_dict = {}
+                for temp_character_attributes_piece in temp_character_attributes:
+                    temp_character_attributes_dict[temp_character_attributes_piece["main_character"]] = temp_character_attributes_piece["characteristics_list"]
+                    temp_character_cls_dict[temp_character_attributes_piece["main_character"]] = temp_character_attributes_piece["cls"]
+
+                for temp_character in valid_character_list_bbox:
+                    if not temp_character in temp_character_attributes_dict:
+                        continue
+                    now_character_attribute = temp_character_attributes_dict[temp_character]
+                    valid_character_list_character_attributes[temp_character] = 0
+
+                    temp_character_attributes_detail_score_json = {}
+                    temp_character_attributes_detail_score_json["main_character"] = temp_character
+                    temp_character_attributes_detail_score_json["attributes_list"] = []
+
+                    if valid_character_list_bbox[temp_character] == None:
+                        for temp_attribute_piece in now_character_attribute:
+                            temp_character_attributes_detail_score_json["attributes_list"].append({"attribute": temp_attribute_piece, "score": 0})
+                        temp_image_state["character_attributes_detail_score"].append(temp_character_attributes_detail_score_json)
+                        continue
+
+                    try:
+                        crop_img = now_image.crop(valid_character_list_bbox[temp_character])
+                    except:
+                        for temp_attribute_piece in now_character_attribute:
+                            temp_character_attributes_detail_score_json["attributes_list"].append({"attribute": temp_attribute_piece, "score": 0})
+                        temp_image_state["character_attributes_detail_score"].append(temp_character_attributes_detail_score_json)
+                        continue
+
+                    if temp_character_cls_dict[temp_character] not in detected_character_s_attribute_num:
+                        detected_character_s_attribute_num[temp_character_cls_dict[temp_character]] = len(now_character_attribute)
+                    else:
+                        detected_character_s_attribute_num[temp_character_cls_dict[temp_character]] += len(now_character_attribute)
+
+
+                    temp_attribute_count = 0
+                    for temp_attribute_piece in now_character_attribute:
+                        prompt = "Please analyze the main character in this image, specifically the \"" + temp_character + "\". Please determine whether \"" + temp_attribute_piece + "\" is one of its characteristics or is associated with it. Please only respond with 'yes' or 'no'."
+                        output_text = pipe((prompt, crop_img))
+                        output_text = output_text.text
 
                         if 'yes' in output_text.lower():
-                            scene_attrbutes_success_count["spatial"] += 1
-                            scene_attrbutes_multi_image_success_count["spatial"][temp_image_name_id] += 1
-                            temp_image_state["scene_attributes_success"]["spatial"] += 1
-
-            new_keep_image_state.append(temp_image_state)
-
-
+                            valid_character_list_character_attributes[temp_character] += 1
+                            temp_character_attributes_detail_score_json["attributes_list"].append({"attribute": temp_attribute_piece, "score": 1})
+                        else:
+                            temp_character_attributes_detail_score_json["attributes_list"].append({"attribute": temp_attribute_piece, "score": 0})
+                    temp_image_state["character_attributes_detail_score"].append(temp_character_attributes_detail_score_json)
 
 
 
-        print(f"object_presence_all_count: {object_presence_all_count}")
-        print(f"object_presence_success_count: {object_presence_success_count}")
+                # character locations
+                valid_character_temp_character_locations = {}
+                temp_character_locations = temp_piece["character_locations"]
+                temp_character_locations_dict = {}
+                for temp_character_locations_piece in temp_character_locations:
+                    temp_character_locations_dict[temp_character_locations_piece["main_character"]] = temp_character_locations_piece["position"]
 
-        print(f"character_attributes_all_count: {character_attributes_all_count}")
-        print(f"character_attributes_success_count: {character_attributes_success_count}")
-        print(f"character_attributes_detect_count: {character_attributes_detect_count}")
+                for temp_character in valid_character_list_bbox:
+                    if not temp_character in temp_character_locations_dict:
+                        continue
+                    valid_character_temp_character_locations[temp_character] = 0
 
-        print(f"character_locations_all_count: {character_locations_all_count}")
-        print(f"character_locations_success_count: {character_locations_success_count}")
+                    if valid_character_list_bbox[temp_character] == None:
+                        continue
 
-        print(f"scene_attrbutes_all_count: {scene_attrbutes_all_count}")
-        print(f"scene_attrbutes_success_count: {scene_attrbutes_success_count}")
-        valid_image_count += 1
+                    bbox_img = now_image.copy()
+                    draw = ImageDraw.Draw(bbox_img)
+                    try:
+                        draw.rectangle(valid_character_list_bbox[temp_character], outline="red", width=5)
+                    except:
+                        continue
 
-        # --- checkpoint & noti progress ---
-        if valid_image_count % report_step == 0 and valid_image_count < total_count:
-            checkpoint_data = {
-                "current_valid_count": valid_image_count,
-                "statistics": {
-                    "object_presence": {
-                        "all": object_presence_all_count,
-                        "success": object_presence_success_count,
-                        "multi_all": object_presence_multi_image_all_count,
-                        "multi_success": object_presence_multi_image_success_count
+                    norm_bbox = [0,0,0,0]
+                    norm_bbox[0] = round(valid_character_list_bbox[temp_character][0]/image_size, 2)
+                    norm_bbox[1] = round(valid_character_list_bbox[temp_character][1]/image_size, 2)
+                    norm_bbox[2] = round(valid_character_list_bbox[temp_character][2]/image_size, 2)
+                    norm_bbox[3] = round(valid_character_list_bbox[temp_character][3]/image_size, 2)
+                    prompt = "Analyze whether the character \"" + temp_character + "\" (marked with a red bounding box at coordinates " + str(norm_bbox) + ") is located in " + temp_character_locations_dict[temp_character].lower() + ". Please only respond with 'yes' or 'no'."
+                    output_text = pipe((prompt, bbox_img))
+                    output_text = output_text.text
+
+                    if 'yes' in output_text.lower():
+                        valid_character_temp_character_locations[temp_character] = 1
+
+
+                # print(valid_character_list_bbox)
+                # object presence stastic
+                temp_image_state["object_presence_all"] = 0
+                temp_image_state["object_presence_success"] = 0
+                if not temp_image_name_id in object_presence_multi_image_all_count:
+                    object_presence_multi_image_all_count[temp_image_name_id] = 0
+                    object_presence_multi_image_success_count[temp_image_name_id] = 0
+
+                temp_image_state["object_presence_all"] += len(valid_character_list_bbox)
+                object_presence_all_count += len(valid_character_list_bbox)
+                object_presence_multi_image_all_count[temp_image_name_id] += len(valid_character_list_bbox)
+                for temp_character in valid_character_list_bbox:
+                    if not valid_character_list_bbox[temp_character] == None:
+                        object_presence_success_count += 1
+                        object_presence_multi_image_success_count[temp_image_name_id] += 1
+                        temp_image_state["object_presence_success"] += 1
+
+
+                # print(valid_character_list_character_attributes)
+                # character attribute stastic
+                temp_image_state["character_attribute_all"] = {}
+                temp_image_state["character_attribute_success"] = {}
+                temp_image_state["detected_character_s_attribute_num"] = detected_character_s_attribute_num
+                if not temp_image_name_id in character_attributes_multi_image_all_count:
+                    character_attributes_multi_image_all_count[temp_image_name_id] = {}
+                    character_attributes_multi_image_success_count[temp_image_name_id] = {}
+                    character_attributes_multi_image_detect_count[temp_image_name_id] = {}
+
+                for temp_detect_chharacter_cls in detected_character_s_attribute_num:
+                    if not temp_detect_chharacter_cls in character_attributes_detect_count:
+                        character_attributes_detect_count[temp_detect_chharacter_cls] = 0
+                    character_attributes_detect_count[temp_detect_chharacter_cls] += detected_character_s_attribute_num[temp_detect_chharacter_cls]
+
+                    if not temp_detect_chharacter_cls in character_attributes_multi_image_detect_count[temp_image_name_id]:
+                        character_attributes_multi_image_detect_count[temp_image_name_id][temp_detect_chharacter_cls] = 0
+                    character_attributes_multi_image_detect_count[temp_image_name_id][temp_detect_chharacter_cls] += detected_character_s_attribute_num[temp_detect_chharacter_cls]
+
+                for temp_character in temp_character_attributes_dict:
+                    if not temp_character_cls_dict[temp_character] in character_attributes_all_count:
+                        character_attributes_all_count[temp_character_cls_dict[temp_character]] = 0
+                    character_attributes_all_count[temp_character_cls_dict[temp_character]] += len(temp_character_attributes_dict[temp_character])
+
+                    if not temp_character_cls_dict[temp_character] in temp_image_state["character_attribute_all"]:
+                        temp_image_state["character_attribute_all"][temp_character_cls_dict[temp_character]] = 0
+                    temp_image_state["character_attribute_all"][temp_character_cls_dict[temp_character]] += len(temp_character_attributes_dict[temp_character])
+
+                    if not temp_character_cls_dict[temp_character] in character_attributes_multi_image_all_count[temp_image_name_id]:
+                        character_attributes_multi_image_all_count[temp_image_name_id][temp_character_cls_dict[temp_character]] = 0
+                    character_attributes_multi_image_all_count[temp_image_name_id][temp_character_cls_dict[temp_character]] += len(temp_character_attributes_dict[temp_character])
+
+                for temp_character in valid_character_list_character_attributes:
+                    if not temp_character_cls_dict[temp_character] in character_attributes_success_count:
+                        character_attributes_success_count[temp_character_cls_dict[temp_character]] = 0
+                    character_attributes_success_count[temp_character_cls_dict[temp_character]] += valid_character_list_character_attributes[temp_character]
+
+                    if not temp_character_cls_dict[temp_character] in temp_image_state["character_attribute_success"]:
+                        temp_image_state["character_attribute_success"][temp_character_cls_dict[temp_character]] = 0
+                    temp_image_state["character_attribute_success"][temp_character_cls_dict[temp_character]] += valid_character_list_character_attributes[temp_character]
+
+                    if not temp_character_cls_dict[temp_character] in character_attributes_multi_image_success_count[temp_image_name_id]:
+                        character_attributes_multi_image_success_count[temp_image_name_id][temp_character_cls_dict[temp_character]] = 0
+                    character_attributes_multi_image_success_count[temp_image_name_id][temp_character_cls_dict[temp_character]] += valid_character_list_character_attributes[temp_character]
+
+
+                # print(valid_character_temp_character_locations)
+                # character locations stastic
+                temp_image_state["character_location_all"] = 0
+                temp_image_state["character_location_success"] = 0
+                if not temp_image_name_id in character_locations_multi_image_all_count:
+                    character_locations_multi_image_all_count[temp_image_name_id] = 0
+                    character_locations_multi_image_success_count[temp_image_name_id] = 0
+
+                character_locations_all_count += len(temp_character_locations_dict)
+                character_locations_multi_image_all_count[temp_image_name_id] += len(temp_character_locations_dict)
+                temp_image_state["character_location_all"] += len(temp_character_locations_dict)
+
+                for temp_character in valid_character_temp_character_locations:
+                    character_locations_success_count += valid_character_temp_character_locations[temp_character]
+                    character_locations_multi_image_success_count[temp_image_name_id] += valid_character_temp_character_locations[temp_character]
+                    temp_image_state["character_location_success"] += valid_character_temp_character_locations[temp_character]
+
+
+                # scene attributes
+                temp_image_state["scene_attributes_all"] = {"background":0, "light":0, "style":0, "spatial":0}
+                temp_image_state["scene_attributes_success"] = {"background":0, "light":0, "style":0, "spatial":0}
+                for temp_scene_attribute in temp_piece["scene_attributes"]:
+                    if not temp_scene_attribute["scene_attribute"] == "spatial":
+                        image = load_image(os.path.join(args.image_folder, temp_image_name))
+                        prompt = "Analyze whether the " + temp_scene_attribute["scene_attribute"] + " condition in this image match the following description: \"" + temp_scene_attribute["content"] +"\". Please only respond with 'yes' or 'no'."
+                        output_text = pipe((prompt, image))
+                        output_text = output_text.text
+
+                        scene_attrbutes_all_count[temp_scene_attribute["scene_attribute"]] += 1
+                        temp_image_state["scene_attributes_all"][temp_scene_attribute["scene_attribute"]] += 1
+                        if not temp_image_name_id in scene_attrbutes_multi_image_all_count[temp_scene_attribute["scene_attribute"]]:
+                            scene_attrbutes_multi_image_all_count[temp_scene_attribute["scene_attribute"]][temp_image_name_id] = 0
+                            scene_attrbutes_multi_image_success_count[temp_scene_attribute["scene_attribute"]][temp_image_name_id] = 0
+                        scene_attrbutes_multi_image_all_count[temp_scene_attribute["scene_attribute"]][temp_image_name_id] += 1
+
+                        if 'yes' in output_text.lower():
+                            scene_attrbutes_success_count[temp_scene_attribute["scene_attribute"]] += 1
+                            scene_attrbutes_multi_image_success_count[temp_scene_attribute["scene_attribute"]][temp_image_name_id] += 1
+                            temp_image_state["scene_attributes_success"][temp_scene_attribute["scene_attribute"]] += 1
+
+                    else:
+                        for temp_spatial in temp_scene_attribute["content"]:
+                            bbox_img = now_image.copy()
+                            draw = ImageDraw.Draw(bbox_img)
+                            add_character_str = ""
+                            for temp_contain_character_id, temp_contain_character in enumerate(valid_character_list_bbox):
+                                if valid_character_list_bbox[temp_contain_character] == None:
+                                    continue
+
+                                try:
+                                    draw.rectangle(valid_character_list_bbox[temp_contain_character], outline="red", width=5)
+                                except:
+                                    continue
+
+                                if not add_character_str == "":
+                                    add_character_str += ", "
+                                add_character_str += "\"" + temp_contain_character + "\""
+
+
+                            if add_character_str == "":
+                                output_text = "no"
+                            else:
+                                prompt = "The provided image contains only characters: " + add_character_str + " (highlighted with red bounding boxes). Analyze whether the spatial condition in this image match the following description: \"" + temp_spatial +"\". Please only respond with 'yes' or 'no'."
+                                output_text = pipe((prompt, bbox_img))
+                                output_text = output_text.text
+
+                            scene_attrbutes_all_count["spatial"] += 1
+                            temp_image_state["scene_attributes_all"]["spatial"] += 1
+                            if not temp_image_name_id in scene_attrbutes_multi_image_all_count["spatial"]:
+                                scene_attrbutes_multi_image_all_count["spatial"][temp_image_name_id] = 0
+                                scene_attrbutes_multi_image_success_count["spatial"][temp_image_name_id] = 0
+                            scene_attrbutes_multi_image_all_count["spatial"][temp_image_name_id] += 1
+
+                            if 'yes' in output_text.lower():
+                                scene_attrbutes_success_count["spatial"] += 1
+                                scene_attrbutes_multi_image_success_count["spatial"][temp_image_name_id] += 1
+                                temp_image_state["scene_attributes_success"]["spatial"] += 1
+
+                new_keep_image_state.append(temp_image_state)
+
+
+
+
+
+            print(f"object_presence_all_count: {object_presence_all_count}")
+            print(f"object_presence_success_count: {object_presence_success_count}")
+
+            print(f"character_attributes_all_count: {character_attributes_all_count}")
+            print(f"character_attributes_success_count: {character_attributes_success_count}")
+            print(f"character_attributes_detect_count: {character_attributes_detect_count}")
+
+            print(f"character_locations_all_count: {character_locations_all_count}")
+            print(f"character_locations_success_count: {character_locations_success_count}")
+
+            print(f"scene_attrbutes_all_count: {scene_attrbutes_all_count}")
+            print(f"scene_attrbutes_success_count: {scene_attrbutes_success_count}")
+            valid_image_count += 1
+
+            # --- checkpoint & noti progress ---
+            if valid_image_count % report_step == 0 and valid_image_count < total_count:
+                checkpoint_data = {
+                    "current_valid_count": valid_image_count,
+                    "statistics": {
+                        "object_presence": {
+                            "all": object_presence_all_count,
+                            "success": object_presence_success_count,
+                            "multi_all": object_presence_multi_image_all_count,
+                            "multi_success": object_presence_multi_image_success_count
+                        },
+                        "character_attributes": {
+                            "all": character_attributes_all_count,
+                            "success": character_attributes_success_count,
+                            "detect": character_attributes_detect_count,
+                            "multi_all": character_attributes_multi_image_all_count,
+                            "multi_success": character_attributes_multi_image_success_count,
+                            "multi_detect": character_attributes_multi_image_detect_count
+                        },
+                        "character_locations": {
+                            "all": character_locations_all_count,
+                            "success": character_locations_success_count,
+                            "multi_all": character_locations_multi_image_all_count,
+                            "multi_success": character_locations_multi_image_success_count
+                        },
+                        "scene_attributes": {
+                            "all": scene_attrbutes_all_count,
+                            "success": scene_attrbutes_success_count,
+                            "multi_all": scene_attrbutes_multi_image_all_count,
+                            "multi_success": scene_attrbutes_multi_image_success_count
+                        }
                     },
-                    "character_attributes": {
-                        "all": character_attributes_all_count,
-                        "success": character_attributes_success_count,
-                        "detect": character_attributes_detect_count,
-                        "multi_all": character_attributes_multi_image_all_count,
-                        "multi_success": character_attributes_multi_image_success_count,
-                        "multi_detect": character_attributes_multi_image_detect_count
-                    },
-                    "character_locations": {
-                        "all": character_locations_all_count,
-                        "success": character_locations_success_count,
-                        "multi_all": character_locations_multi_image_all_count,
-                        "multi_success": character_locations_multi_image_success_count
-                    },
-                    "scene_attributes": {
-                        "all": scene_attrbutes_all_count,
-                        "success": scene_attrbutes_success_count,
-                        "multi_all": scene_attrbutes_multi_image_all_count,
-                        "multi_success": scene_attrbutes_multi_image_success_count
-                    }
-                },
-                "detail_scores": new_keep_image_state,
-                "no_found_image_id": no_found_image_id
-            }
+                    "detail_scores": new_keep_image_state,
+                    "no_found_image_id": no_found_image_id
+                }
 
-            with open(checkpoint_file, "w") as f:
-                json.dump(checkpoint_data, f, indent=4)
-            print(f"\nCheckpoint saved to {checkpoint_file}")
+                with open(checkpoint_file, "w") as f:
+                    json.dump(checkpoint_data, f, indent=4)
+                print(f"\nCheckpoint saved to {checkpoint_file}")
 
-            percentage = (valid_image_count / total_count) * 100
-            progress_message = (
-                f" :hourglass_flowing_sand: 進捗報告: {percentage:.0f}% 完了 "
-                f"({valid_image_count}/{total_count})\n"
-            )
-            slack_service.send_message(message=progress_message, thread_ts=slack_message_ts_start)
-        # ----------------------------------
+                percentage = (valid_image_count / total_count) * 100
+                progress_message = (
+                    f" :hourglass_flowing_sand: 進捗報告: {percentage:.0f}% 完了 "
+                    f"({valid_image_count}/{total_count})\n"
+                )
+                slack_service.send_message(message=progress_message, thread_ts=slack_message_ts_start)
+            # ----------------------------------
+        except Exception as e:
+            print(f"\n--- ERROR encountered for prompt {temp_piece_image_id} ---")
+            print(e)
+            print("----------------------------------------------------------")
+            message = f":warning: ({valid_image_count})回目でエラーが発生しました: {e} for prompt ID {temp_piece_image_id}"
+            slack_message_ts_complete = slack_service.send_message(message=message, thread_ts=slack_message_ts_start)
+
+            # stop the eval process when error occurs
+            sys.exit(1)
 
 
     overall_json = {}
