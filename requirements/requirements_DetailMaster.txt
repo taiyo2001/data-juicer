@@ -44,6 +44,7 @@ idna==3.11
 importlib_metadata @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_importlib-metadata_1747934053/work
 ipykernel @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_ipykernel_1761567932/work
 ipython @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_ipython_1748711175/work
+japanize-matplotlib==1.1.3
 jedi @ file:///home/conda/feedstock_root/build_artifacts/jedi_1733300866624/work
 Jinja2==3.1.6
 jiter==0.11.1
@@ -110,6 +111,7 @@ pydantic==2.12.3
 pydantic_core==2.41.4
 Pygments @ file:///home/conda/feedstock_root/build_artifacts/pygments_1750615794071/work
 pyparsing==3.2.5
+pysbd==0.3.4
 python-dateutil @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_python-dateutil_1751104122/work
 pytz==2025.2
 PyYAML==6.0.3
@@ -123,9 +125,11 @@ rich==14.2.0
 rpds-py==0.27.1
 safetensors==0.6.2
 scipy==1.15.3
+seaborn==0.13.2
 sentencepiece==0.2.1
 shortuuid==1.0.13
 six @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_six_1753199211/work
+slack_sdk==3.39.0
 sniffio==1.3.1
 stack_data @ file:///home/conda/feedstock_root/build_artifacts/stack_data_1733569443808/work
 starlette==0.48.0
