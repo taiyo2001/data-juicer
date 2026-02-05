@@ -3,13 +3,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 import os
+import japanize_matplotlib
 
-# --- 設定 ---
-output_path = "./data-juicer/outputs/DetailMaster_Dataset_analysis.json"
+input_path = "./data-juicer/outputs/DetailMaster_Dataset_analysis.json"
 save_dir = "./data-juicer/outputs"
 os.makedirs(save_dir, exist_ok=True)
 
-with open(output_path, "r") as f:
+with open(input_path, "r") as f:
     data = json.load(f)
 
 df = pd.DataFrame(data)
@@ -17,8 +17,10 @@ df = pd.DataFrame(data)
 # --- 1. ヒストグラムの描画 ---
 plt.figure(figsize=(14, 8))
 sns.set_theme(style="whitegrid")
+japanize_matplotlib.japanize()
 
 # 各トークナイザーの分布を重ねる
+# sns.histplot(df['clip_tokens'], kde=True, color="skyblue", label="CLIP", bins=30, alpha=0.4)
 sns.histplot(df['clip_tokens'], kde=True, color="skyblue", label="CLIP (ViT-L/14)", bins=30, alpha=0.4)
 sns.histplot(df['t5_tokens'], kde=True, color="salmon", label="T5-XXL", bins=30, alpha=0.4)
 sns.histplot(df['qwen_vl_tokens'], kde=True, color="green", label="Qwen-VL (Original)", bins=30, alpha=0.4)
@@ -29,6 +31,7 @@ sns.histplot(df['dp_qwen_vl_tokens'], kde=True, color="orange", label="Qwen-VL (
 # 制限ラインの追加
 plt.axvline(x=77, color='blue', linestyle='--', alpha=0.5, label='CLIP Limit (77)')
 plt.axvline(x=256, color='red', linestyle='--', alpha=0.5, label='T5 Recommended (256)')
+# plt.axvline(x=1024, color='forestgreen', linestyle='--', alpha=0.5, label='Qwen VL Recommended (1024)')
 
 
 plt.title("Detailed Token Count Distribution", fontsize=15)
@@ -37,6 +40,13 @@ plt.ylabel("Frequency", fontsize=12)
 plt.legend()
 
 plt.savefig(os.path.join(save_dir, "token_distribution_extended.png"))
+
+# plt.xlabel("トークン数", fontsize=20)
+# plt.ylabel("出現頻度", fontsize=20)
+# plt.tick_params(axis='both', which='major', labelsize=16)
+# plt.legend(fontsize=20, loc='upper right')
+# plt.savefig(os.path.join(save_dir, "token_distribution_simple.png"))
+
 plt.show()
 
 # --- 2. 統計サマリーの表示 ---
