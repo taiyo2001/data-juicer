@@ -42,6 +42,9 @@ def parse_args():
     parser.add_argument('--dp_prompt_path', type=str, default=None)
     parser.add_argument('--disable_dp_clip', action='store_false', dest='dp_clip')
     parser.add_argument('--disable_dp_t5', action='store_false', dest='dp_t5')
+    # clip prompt
+    parser.add_argument('--cp_num', type=str, default=None)
+    parser.add_argument('--cp_prompt_path', type=str, default=None)
 
     # default dense prompt adaption to both
     parser.set_defaults(dp_clip=True, dp_t5=True)
@@ -67,6 +70,10 @@ def parse_args():
             args.model_name = args.model_name + f"_DP{args.dp_num}-C"
         elif args.dp_t5:
             args.model_name = args.model_name + f"_DP{args.dp_num}-T"
+
+    # clip prompt
+    if args.cp_num is not None and args.cp_prompt_path is not None:
+        args.model_name = args.model_name + f"_CP{args.cp_num}"
 
     if args.count is not None:
         args.model_name = args.model_name + f"_{args.count}"
@@ -118,13 +125,11 @@ if __name__ == "__main__":
     print("--- Model Name: ", args.model_name, " ---")
     print("--- Prompt Weighting: ", prompt_weighting, ", CLIP: ", extend_clip, ", T5: ", exted_t5, " ---")
     print("--- Max Sequence Length: ", max_sequence_length, " ---")
-    print("--- SP Num: ", args.sp_num, " ---")
-    print("--- SP Prompt: ", args.sp_prompt, " ---")
-    print("--- Negative Prompt Num: ", args.np_num, " ---")
-    print("--- Negative Prompt: ", args.np_prompt_path or args.np_prompt, " ---")
-    print("--- Dense Prompt Num: ", args.dp_num, " ---")
-    print("--- Dense Prompt: ", args.dp_prompt_path, " ---")
+    print(f"--- System Prompt: No.{args.sp_num}-{args.sp_prompt}  ---")
+    print(f"--- Negative Prompt: No.{args.np_num}-{args.np_prompt_path or args.np_prompt}  ---")
+    print(f"--- Dense Prompt: No.{args.dp_num}-{args.dp_prompt_path}  ---")
     print(f"--- Dense Prompt Adaption: CLIP: {args.dp_clip}, T5: {args.dp_t5} ---")
+    print(f"--- CLIP Prompt: No.{args.cp_num}-{args.cp_prompt_path}  ---")
     print("--- SAVE START THRESHOLD: ", args.save_start_threshold, " ---")
 
     # notify start
@@ -132,13 +137,11 @@ if __name__ == "__main__":
     model_info = {
         "Prompt Weighting": f"{prompt_weighting}, CLIP: {extend_clip}, T5: {exted_t5}",
         "Max Sequence Length": max_sequence_length,
-        "SP Num": args.sp_num,
-        "SP Prompt": args.sp_prompt,
-        "Negative Prompt Num": args.np_num,
-        "Negative Prompt": args.np_prompt_path or args.np_prompt,
-        "Dense Prompt Num": args.dp_num,
-        "Dense Prompt": args.dp_prompt_path,
+        "System Prompt": f"No.{args.sp_num}-{args.sp_prompt}",
+        "Negative Prompt": f"No.{args.np_num}-{args.np_prompt_path or args.np_prompt}",
+        "Dense Prompt": f"No.{args.dp_num}-{args.dp_prompt_path}",
         "Dense Prompt Adaption": f"CLIP: {args.dp_clip}, T5: {args.dp_t5}",
+        "CLIP Prompt": f"No.{args.cp_num}-{args.cp_prompt_path}",
         "SAVE START THRESHOLD": args.save_start_threshold,
     }
     message = build_image_generation_start_message(args.model_name, model_info)
@@ -206,6 +209,17 @@ if __name__ == "__main__":
                 dp_dict[dict_image_id] = dict_dp
         print("dp_dict len: ", len(dp_dict))
 
+    if args.cp_prompt_path:
+        with open(args.cp_prompt_path, "r") as f:
+            cp_data = json.load(f)
+
+        cp_dict = {}
+        for item in cp_data:
+            dict_image_id = item.get("image_id")
+            dict_cp = item.get("llm_output")
+            if dict_image_id and dict_cp:
+                cp_dict[dict_image_id] = dict_cp
+        print("cp_dict len: ", len(cp_dict))
 
     with open(args.prompt_path, "r") as f:
         data = json.load(f)
@@ -234,6 +248,14 @@ if __name__ == "__main__":
                 else:
                     print("No Dense Prompt found for ", image_id)
 
+            clip_prompt = None
+            if args.cp_prompt_path and args.cp_num:
+                clip_prompt = cp_dict.get(image_id)
+                if clip_prompt is not None:
+                    print("CLIP Prompt: ", clip_prompt[:50], "...")
+                else:
+                    print("No CLIP Prompt found for ", image_id)
+
             if args.save_start_threshold is None or valid_image_count > args.save_start_threshold:
                 if prompt_weighting:
                     # normal
@@ -259,6 +281,11 @@ if __name__ == "__main__":
                             print("Adapt Dense Prompt T5")
                             prompt = normal_prompt
                             llm_prompt = dense_prompt
+                    # -- CP ---
+                    if args.cp_prompt_path and args.cp_num and clip_prompt is not None:
+                        print("Adapt CLIP Prompt")
+                        prompt = clip_prompt
+                        llm_prompt = normal_prompt
 
                     (prompt_embeds, prompt_neg_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds) = get_weighted_text_embeddings_sd3(
                         pipe,
