@@ -71,38 +71,37 @@ if __name__ == "__main__":
 
     prompt_weighting = False
     chunking_method = None
+    force_sentence_split = False
+    overlap_size = None
     if "_EM" in args.model_name:
         prompt_weighting = True
         if "_EM-SE" in args.model_name:
             chunking_method = "sentence"
             sentence_chunking = True
+            if "_EM-SE-FSP" in args.model_name:
+                force_sentence_split = True
         elif "_EM-S" in args.model_name and args.semantic_threshold is not None:
             chunking_method = "semantic"
+        if "_EM-O" in args.model_name:
+            overlap_size = 10
 
     is_colab = check_is_colab()
 
     print(f"--- is_colab: {is_colab} ---")
     print("--- Model Name: ", args.model_name, " ---")
-    print("--- Prompt Weighting: ", prompt_weighting, "Semantic Chunking: ", chunking_method, args.semantic_threshold, " ---")
-    print("--- SP Num: ", args.sp_num, " ---")
-    print("--- SP Prompt: ", args.sp_prompt, " ---")
-    print("--- Negative Prompt Num: ", args.np_num, " ---")
-    print("--- Negative Prompt: ", args.np_prompt_path or args.np_prompt, " ---")
-    print("--- Dense Prompt Num: ", args.dp_num, " ---")
-    print("--- Dense Prompt: ", args.dp_prompt_path, " ---")
+    print(f"--- Prompt Weighting: {prompt_weighting}, Chunking Method: {chunking_method}, Semantic Threshold: {args.semantic_threshold}, Force Sentence Split: {force_sentence_split}, Overlap Size: {overlap_size} ---")
+    print(f"--- System Prompt: No.{args.sp_num}-{args.sp_prompt}  ---")
+    print(f"--- Negative Prompt: No.{args.np_num}-{args.np_prompt_path or args.np_prompt}  ---")
+    print(f"--- Dense Prompt: No.{args.dp_num}-{args.dp_prompt_path}  ---")
     print("--- SAVE START THRESHOLD: ", args.save_start_threshold, " ---")
 
     # notify start
     mention_id = os.environ.get("SLACK_MENTION_ID")
     model_info = {
-        "Prompt Weighting": prompt_weighting,
-        "Chunking Method": chunking_method,
-        "SP Num": args.sp_num,
-        "SP Prompt": args.sp_prompt,
-        "Negative Prompt Num": args.np_num,
-        "Negative Prompt": args.np_prompt_path or args.np_prompt,
-        "Dense Prompt Num": args.dp_num,
-        "Dense Prompt": args.dp_prompt_path,
+        "Prompt Weighting": f"{prompt_weighting}, Chunking: {chunking_method}, Semantic: {args.semantic_threshold}, FSP: {force_sentence_split}, Overlap: {overlap_size}",
+        "System Prompt": f"No.{args.sp_num}-{args.sp_prompt}",
+        "Negative Prompt": f"No.{args.np_num}-{args.np_prompt_path or args.np_prompt}",
+        "Dense Prompt": f"No.{args.dp_num}-{args.dp_prompt_path}",
         "SAVE START THRESHOLD": args.save_start_threshold,
     }
     message = build_image_generation_start_message(args.model_name, model_info)
@@ -150,6 +149,10 @@ if __name__ == "__main__":
     report_step = max(1, total_count // 10)
     valid_image_count = 0
     for temp_piece in tqdm.tqdm(data):
+        # if valid_image_count >= 2:
+        #     valid_image_count += 1
+        #     continue
+
         try:
             image_id = f"{temp_piece['dataset_target']}_{temp_piece['image_id']}"
             image_name = f"{temp_piece['dataset_target']}_{args.model_name}_{valid_image_count}_{temp_piece['image_id']}"
@@ -187,7 +190,9 @@ if __name__ == "__main__":
                         prompt=prompt,
                         neg_prompt=neg_prompt,
                         chunking_method=chunking_method,
-                        semantic_threshold=args.semantic_threshold
+                        semantic_threshold=args.semantic_threshold,
+                        force_sentence_split=force_sentence_split,
+                        overlap_size=overlap_size,
                     )
                     image = pipe(
                         prompt_embeds=prompt_embeds,
