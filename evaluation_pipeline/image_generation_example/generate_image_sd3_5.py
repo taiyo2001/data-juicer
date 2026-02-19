@@ -118,6 +118,8 @@ if __name__ == "__main__":
         max_sequence_length = 256
     elif '_SL512' in args.model_name:
         max_sequence_length = 512
+    elif '_SL0' in args.model_name:
+        max_sequence_length = None
 
     is_colab = check_is_colab()
 
@@ -166,10 +168,12 @@ if __name__ == "__main__":
             subfolder="transformer",
             quantization_config=quantization_config,
             torch_dtype=torch.bfloat16
+        # )
         ).to("cuda")
         t5_nf4 = T5EncoderModel.from_pretrained(
             "diffusers/t5-nf4",
             torch_dtype=torch.bfloat16
+        # )
         ).to("cuda")
 
         pipe = StableDiffusion3Pipeline.from_pretrained(
@@ -177,7 +181,9 @@ if __name__ == "__main__":
             transformer=model_nf4,
             text_encoder_3=t5_nf4,
             torch_dtype=torch.bfloat16
+        # )
         ).to("cuda")
+        # pipe.enable_model_cpu_offload()
 
     new_data = []
 
@@ -322,14 +328,37 @@ if __name__ == "__main__":
                     if args.sp_prompt and args.sp_num:
                         prompt = sp_positive_prompt
 
-                    image = pipe(
-                        prompt,
-                        height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
-                        width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
-                        num_inference_steps=num_inference_steps,
-                        max_sequence_length=max_sequence_length,
-                        guidance_scale=guidance_scale,
-                    ).images[0]
+                    if max_sequence_length is None:
+                        print("Using full sequence length for encoding prompts...!!")
+                        target_sequence_length = 768
+
+                        with torch.no_grad():
+                            prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds = pipe.encode_prompt(
+                                prompt=prompt,
+                                prompt_2=prompt,
+                                prompt_3=prompt,
+                                max_sequence_length=target_sequence_length
+                            )
+
+                        image = pipe(
+                            prompt_embeds=prompt_embeds,
+                            negative_prompt_embeds=negative_prompt_embeds,
+                            pooled_prompt_embeds=pooled_prompt_embeds,
+                            negative_pooled_prompt_embeds=negative_pooled_prompt_embeds,
+                            height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                            width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                            num_inference_steps=num_inference_steps,
+                            guidance_scale=guidance_scale,
+                        ).images[0]
+                    else:
+                        image = pipe(
+                            prompt,
+                            height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                            width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
+                            num_inference_steps=num_inference_steps,
+                            max_sequence_length=max_sequence_length,
+                            guidance_scale=guidance_scale,
+                        ).images[0]
 
                 image.save(os.path.join(args.image_output_dir, image_name))
             else:
