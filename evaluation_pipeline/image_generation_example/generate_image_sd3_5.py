@@ -330,7 +330,7 @@ if __name__ == "__main__":
 
                     if max_sequence_length is None:
                         print("Using full sequence length for encoding prompts...!!")
-                        target_sequence_length = 768
+                        target_sequence_length = DETAIL_MASTER.TEXT_ENCODER.MAX_SEQUENCE_LENGTH
 
                         with torch.no_grad():
                             prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds = pipe.encode_prompt(

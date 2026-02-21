@@ -6,7 +6,6 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.abspath(os.path.join(current_dir, "../../.."))
 print(f"Project Root Directory: {PROJECT_ROOT}")
 sys.path.append(PROJECT_ROOT)
-sys.path.append(os.path.join(PROJECT_ROOT, "sd_embed/src"))
 # GGUF_DEV_MODEL_PATH = os.path.join(PROJECT_ROOT, "data-juicer/models/flux1-dev-Q8_0.gguf")
 GGUF_DEV_MODEL_PATH = os.path.join(PROJECT_ROOT, "data-juicer/models/flux1-dev-Q4_K_S.gguf")
 # GGUF_SCHNELL_MODEL_PATH = os.path.join(PROJECT_ROOT, "data-juicer/models/flux1-schnell-Q8_0.gguf")
@@ -31,7 +30,7 @@ def parse_args():
     # model
     parser.add_argument('--model_path', type=str, default=None)
     parser.add_argument('--model_name', type=str, default="SD1_5")
-    parser.add_argument('--prompt_path', type=str, default="./DetailMaster_Dataset/DetailMaster_Dataset.json")
+    parser.add_argument('--prompt_path', type=str, default="./data-juicer/DetailMaster_Dataset/DetailMaster_Dataset.json")
     parser.add_argument('--output_json', type=str, default="./output.json")
     parser.add_argument('--image_output_dir', type=str, default="./output_image/")
     parser.add_argument('--count', type=str, default=None)
@@ -85,8 +84,8 @@ def parse_args():
     if args.count is not None:
         args.model_name = args.model_name + f"_{args.count}"
 
-    args.output_json = f"./outputs/image_info/output_image_info_{args.model_name}.json"
-    args.image_output_dir = f"./outputs/image/output_image_{args.model_name}/"
+    args.output_json = f"./data-juicer/outputs/image_info/output_image_info_{args.model_name}.json"
+    args.image_output_dir = f"./data-juicer/outputs/image/output_image_{args.model_name}/"
 
     return args
 
@@ -292,7 +291,7 @@ if __name__ == "__main__":
                         t5_max_length=max_sequence_length,
                     )
                     image = pipe(
-                        prompt_embeds,
+                        prompt_embeds=prompt_embeds,
                         pooled_prompt_embeds=pooled_prompt_embeds,
                         height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
                         width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
@@ -306,7 +305,7 @@ if __name__ == "__main__":
 
                     if max_sequence_length is None:
                         print("Using full sequence length for encoding prompts...!!")
-                        target_sequence_length = 768
+                        target_sequence_length = DETAIL_MASTER.TEXT_ENCODER.MAX_SEQUENCE_LENGTH
 
                         with torch.no_grad():
                             prompt_embeds, pooled_prompt_embeds, _ = pipe.encode_prompt(
