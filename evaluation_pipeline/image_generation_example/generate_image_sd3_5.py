@@ -8,6 +8,7 @@ print(f"Project Root Directory: {PROJECT_ROOT}")
 sys.path.append(PROJECT_ROOT)
 # --------------------------------
 
+import gc
 import torch
 from diffusers import StableDiffusion3Pipeline, BitsAndBytesConfig, SD3Transformer2DModel
 from transformers import T5EncoderModel
@@ -184,6 +185,7 @@ if __name__ == "__main__":
         # )
         ).to("cuda")
         # pipe.enable_model_cpu_offload()
+        # print("fix: enable_model_cpu_offload!")
 
     new_data = []
 
@@ -262,38 +264,41 @@ if __name__ == "__main__":
                 else:
                     print("No CLIP Prompt found for ", image_id)
 
+            # normal
+            prompt = normal_prompt
+            llm_prompt = None
+            # -- SP ---
+            if args.sp_prompt and args.sp_num:
+                if args.sp_t5_only:
+                    llm_prompt = sp_positive_prompt
+                else:
+                    prompt = sp_positive_prompt
+            # -- DP ---
+            if args.dp_prompt_path and args.dp_num and dense_prompt is not None:
+                if args.dp_clip and args.dp_t5:
+                    print("Adapt Dense Prompt Both CLIP and T5")
+                    prompt = dense_prompt
+                    llm_prompt = dense_prompt
+                elif args.dp_clip:
+                    print("Adapt Dense Prompt CLIP")
+                    prompt = dense_prompt
+                    llm_prompt = normal_prompt
+                elif args.dp_t5:
+                    print("Adapt Dense Prompt T5")
+                    prompt = normal_prompt
+                    llm_prompt = dense_prompt
+            # -- CP ---
+            if args.cp_prompt_path and args.cp_num and clip_prompt is not None:
+                print("Adapt CLIP Prompt")
+                prompt = clip_prompt
+                llm_prompt = normal_prompt
+
+            if llm_prompt is None:
+                llm_prompt = prompt
+
             if args.save_start_threshold is None or valid_image_count > args.save_start_threshold:
                 if prompt_weighting:
-                    # normal
-                    prompt = normal_prompt
-                    llm_prompt = None
-                    # -- SP ---
-                    if args.sp_prompt and args.sp_num:
-                        if args.sp_t5_only:
-                            llm_prompt = sp_positive_prompt
-                        else:
-                            prompt = sp_positive_prompt
-                    # -- DP ---
-                    if args.dp_prompt_path and args.dp_num and dense_prompt is not None:
-                        if args.dp_clip and args.dp_t5:
-                            print("Adapt Dense Prompt Both CLIP and T5")
-                            prompt = dense_prompt
-                            llm_prompt = dense_prompt
-                        elif args.dp_clip:
-                            print("Adapt Dense Prompt CLIP")
-                            prompt = dense_prompt
-                            llm_prompt = normal_prompt
-                        elif args.dp_t5:
-                            print("Adapt Dense Prompt T5")
-                            prompt = normal_prompt
-                            llm_prompt = dense_prompt
-                    # -- CP ---
-                    if args.cp_prompt_path and args.cp_num and clip_prompt is not None:
-                        print("Adapt CLIP Prompt")
-                        prompt = clip_prompt
-                        llm_prompt = normal_prompt
-
-                    (prompt_embeds, prompt_neg_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds) = get_weighted_text_embeddings_sd3(
+                    (prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds) = get_weighted_text_embeddings_sd3(
                         pipe,
                         prompt=prompt,
                         llm_prompt=llm_prompt,
@@ -304,7 +309,7 @@ if __name__ == "__main__":
                     )
                     image = pipe(
                         prompt_embeds=prompt_embeds,
-                        negative_prompt_embeds=prompt_neg_embeds,
+                        negative_prompt_embeds=negative_prompt_embeds,
                         pooled_prompt_embeds=pooled_prompt_embeds,
                         negative_pooled_prompt_embeds=negative_pooled_prompt_embeds,
                         height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
@@ -324,19 +329,15 @@ if __name__ == "__main__":
                     #     guidance_scale=guidance_scale,
                     # ).images[0]
                 else:
-                    prompt = normal_prompt
-                    if args.sp_prompt and args.sp_num:
-                        prompt = sp_positive_prompt
-
                     if max_sequence_length is None:
-                        print("Using full sequence length for encoding prompts...!!")
+                        print("Using full sequence length for encoding prompts.")
                         target_sequence_length = DETAIL_MASTER.TEXT_ENCODER.MAX_SEQUENCE_LENGTH
 
                         with torch.no_grad():
                             prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds = pipe.encode_prompt(
                                 prompt=prompt,
                                 prompt_2=prompt,
-                                prompt_3=prompt,
+                                prompt_3=llm_prompt,
                                 max_sequence_length=target_sequence_length
                             )
 
@@ -352,7 +353,9 @@ if __name__ == "__main__":
                         ).images[0]
                     else:
                         image = pipe(
-                            prompt,
+                            prompt=prompt,
+                            prompt_2=prompt,
+                            prompt_3=llm_prompt,
                             height=DETAIL_MASTER.IMAGE_SIZE.SMALL,
                             width=DETAIL_MASTER.IMAGE_SIZE.SMALL,
                             num_inference_steps=num_inference_steps,
@@ -361,6 +364,11 @@ if __name__ == "__main__":
                         ).images[0]
 
                 image.save(os.path.join(args.image_output_dir, image_name))
+                del image
+                if 'prompt_embeds' in dir():
+                    del prompt_embeds, negative_prompt_embeds, pooled_prompt_embeds, negative_pooled_prompt_embeds
+                gc.collect()
+                torch.cuda.empty_cache()
             else:
                 print(f"Skipping image save for index {valid_image_count} (JSON entry only)")
 
