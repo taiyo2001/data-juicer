@@ -43,6 +43,7 @@ def parse_args():
     parser.add_argument('--dp_prompt_path', type=str, default=None)
     parser.add_argument('--disable_dp_clip', action='store_false', dest='dp_clip')
     parser.add_argument('--disable_dp_t5', action='store_false', dest='dp_t5')
+    parser.add_argument('--dp_pooled', action='store_true', default=False)
     # clip prompt
     parser.add_argument('--cp_num', type=str, default=None)
     parser.add_argument('--cp_prompt_path', type=str, default=None)
@@ -65,12 +66,13 @@ def parse_args():
 
     # dense prompt
     if args.dp_num is not None and args.dp_prompt_path is not None:
+        _p = "-P" if args.dp_pooled else ""
         if args.dp_clip and args.dp_t5:
-            args.model_name = args.model_name + f"_DP{args.dp_num}"
+            args.model_name = args.model_name + f"_DP{args.dp_num}{_p}"
         elif args.dp_clip:
-            args.model_name = args.model_name + f"_DP{args.dp_num}-C"
+            args.model_name = args.model_name + f"_DP{args.dp_num}-C{_p}"
         elif args.dp_t5:
-            args.model_name = args.model_name + f"_DP{args.dp_num}-T"
+            args.model_name = args.model_name + f"_DP{args.dp_num}-T{_p}"
 
     # clip prompt
     if args.cp_num is not None and args.cp_prompt_path is not None:
@@ -114,6 +116,10 @@ if __name__ == "__main__":
             extend_clip = True
             exted_t5 = True
 
+    use_first_chunk_pooled = False
+    if '_FCP' in args.model_name: # use First Chunk Pooled prompt
+        use_first_chunk_pooled = True
+
     max_sequence_length = 256 # default
     if '_SL256' in args.model_name:
         max_sequence_length = 256
@@ -131,7 +137,8 @@ if __name__ == "__main__":
     print(f"--- System Prompt: No.{args.sp_num}-{args.sp_prompt}  ---")
     print(f"--- Negative Prompt: No.{args.np_num}-{args.np_prompt_path or args.np_prompt}  ---")
     print(f"--- Dense Prompt: No.{args.dp_num}-{args.dp_prompt_path}  ---")
-    print(f"--- Dense Prompt Adaption: CLIP: {args.dp_clip}, T5: {args.dp_t5} ---")
+    print(f"--- Dense Prompt Adaption: CLIP: {args.dp_clip}, T5: {args.dp_t5}, Pooled: {args.dp_pooled} ---")
+    print(f"--- Use First Chunk Pooled: {use_first_chunk_pooled} ---")
     print(f"--- CLIP Prompt: No.{args.cp_num}-{args.cp_prompt_path}  ---")
     print("--- SAVE START THRESHOLD: ", args.save_start_threshold, " ---")
 
@@ -143,7 +150,8 @@ if __name__ == "__main__":
         "System Prompt": f"No.{args.sp_num}-{args.sp_prompt}",
         "Negative Prompt": f"No.{args.np_num}-{args.np_prompt_path or args.np_prompt}",
         "Dense Prompt": f"No.{args.dp_num}-{args.dp_prompt_path}",
-        "Dense Prompt Adaption": f"CLIP: {args.dp_clip}, T5: {args.dp_t5}",
+        "Dense Prompt Adaption": f"CLIP: {args.dp_clip}, T5: {args.dp_t5}, Pooled: {args.dp_pooled}",
+        "Use First Chunk Pooled": use_first_chunk_pooled,
         "CLIP Prompt": f"No.{args.cp_num}-{args.cp_prompt_path}",
         "SAVE START THRESHOLD": args.save_start_threshold,
     }
@@ -264,6 +272,8 @@ if __name__ == "__main__":
                 else:
                     print("No CLIP Prompt found for ", image_id)
 
+            pooled_prompt = dense_prompt if args.dp_pooled and dense_prompt is not None else None
+
             # normal
             prompt = normal_prompt
             llm_prompt = None
@@ -306,6 +316,8 @@ if __name__ == "__main__":
                         extend_clip=extend_clip,
                         extend_t5=exted_t5,
                         t5_max_length=max_sequence_length,
+                        pooled_prompt=pooled_prompt,
+                        use_first_chunk_pooled=use_first_chunk_pooled,
                     )
                     image = pipe(
                         prompt_embeds=prompt_embeds,
