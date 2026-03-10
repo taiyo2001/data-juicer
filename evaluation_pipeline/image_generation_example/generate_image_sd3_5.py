@@ -117,7 +117,7 @@ if __name__ == "__main__":
             exted_t5 = True
 
     use_first_chunk_pooled = False
-    if '_FCP' in args.model_name: # use First Chunk Pooled prompt
+    if '_FCP' in args.model_name and (extend_clip or args.dp_pooled):
         use_first_chunk_pooled = True
 
     max_sequence_length = 256 # default
@@ -256,21 +256,29 @@ if __name__ == "__main__":
             elif args.np_prompt and args.np_num:
                 neg_prompt = args.np_prompt
 
+            is_duplicate = image_id in DETAIL_MASTER.DUPLICATE_IMAGE_IDS.IDS
+
             dense_prompt = None
             if args.dp_prompt_path and args.dp_num:
-                dense_prompt = dp_dict.get(image_id)
-                if dense_prompt is not None:
-                    print("Dense Prompt: ", dense_prompt[:50], "...")
+                if is_duplicate:
+                    print(f"Duplicate image_id {image_id}: skipping dense prompt, using original prompt")
                 else:
-                    print("No Dense Prompt found for ", image_id)
+                    dense_prompt = dp_dict.get(image_id)
+                    if dense_prompt is not None:
+                        print("Dense Prompt: ", dense_prompt[:50], "...")
+                    else:
+                        print("No Dense Prompt found for ", image_id)
 
             clip_prompt = None
             if args.cp_prompt_path and args.cp_num:
-                clip_prompt = cp_dict.get(image_id)
-                if clip_prompt is not None:
-                    print("CLIP Prompt: ", clip_prompt[:50], "...")
+                if is_duplicate:
+                    print(f"Duplicate image_id {image_id}: skipping clip prompt, using original prompt")
                 else:
-                    print("No CLIP Prompt found for ", image_id)
+                    clip_prompt = cp_dict.get(image_id)
+                    if clip_prompt is not None:
+                        print("CLIP Prompt: ", clip_prompt[:50], "...")
+                    else:
+                        print("No CLIP Prompt found for ", image_id)
 
             pooled_prompt = dense_prompt if args.dp_pooled and dense_prompt is not None else None
 

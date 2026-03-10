@@ -165,13 +165,18 @@ if __name__ == "__main__":
             elif args.np_prompt and args.np_num:
                 neg_prompt = args.np_prompt
 
+            is_duplicate = image_id in DETAIL_MASTER.DUPLICATE_IMAGE_IDS.IDS
+
             dense_prompt = None
             if args.dp_prompt_path and args.dp_num:
-                dense_prompt = dp_dict.get(image_id)
-                if dense_prompt is not None:
-                    print("Dense Prompt: ", dense_prompt[:50], "...")
+                if is_duplicate:
+                    print(f"Duplicate image_id {image_id}: skipping dense prompt, using original prompt")
                 else:
-                    print("No Dense Prompt found for ", image_id)
+                    dense_prompt = dp_dict.get(image_id)
+                    if dense_prompt is not None:
+                        print("Dense Prompt: ", dense_prompt[:50], "...")
+                    else:
+                        print("No Dense Prompt found for ", image_id)
 
             if args.save_start_threshold is None or valid_image_count > args.save_start_threshold:
                 if prompt_weighting:
