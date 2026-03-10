@@ -8,13 +8,14 @@ print(f"Project Root Directory: {PROJECT_ROOT}")
 sys.path.append(PROJECT_ROOT)
 # --------------------------------
 
-from google import genai
-from src.utils.env_detector import check_is_colab
-from src.services.slack_client_service import slack_service, build_image_generation_start_message, build_image_generation_complete_message
-import time
-import json
-import tqdm
 import argparse
+import tqdm
+import json
+import time
+from src.services.slack_client_service import slack_service, build_image_generation_start_message, build_image_generation_complete_message
+from src.utils.env_detector import check_is_colab
+from src.constants import DETAIL_MASTER
+from google import genai
 
 # START_INDEX = 2000
 
@@ -48,6 +49,7 @@ if __name__ == "__main__":
     print(f"--- is_colab: {is_colab} ---")
     print("--- Model Name: ", args.model_name, " ---")
     print("--- Instruction Path: ", args.instruction_path, " ---")
+    print("--- Output Json: ", args.output_json, " ---")
 
     # notify start
     mention_id = os.environ.get("SLACK_MENTION_ID")
@@ -79,18 +81,33 @@ if __name__ == "__main__":
     with open(args.instruction_path, "r") as f:
         instruction = f.read()
 
+    # --- 診断: 処理対象件数の確認 ---
+    truly_missing = []   # output fileにimage_id自体が存在しない
+    null_output = []     # output fileに存在するがllm_outputがnull/空
+    for item in data:
+        iid = f"{item['dataset_target']}_{item['image_id']}"
+        if iid not in data_dict:
+            truly_missing.append(iid)
+        elif not data_dict[iid]:
+            null_output.append(iid)
+    print(f"--- Truly missing (not in output): {len(truly_missing)} ---")
+    print(f"--- In output with null/empty llm_output: {len(null_output)} ---")
+    print(f"--- Total to process: {len(truly_missing) + len(null_output)} / {len(data)} ---")
+    # --------------------------------
+
     total_count = len(data)
     report_step = max(1, total_count // 10)
     valid_image_count = 0
+    actually_processed = 0
     for temp_piece in tqdm.tqdm(data):
-    # 開始位置調整
-    # for temp_piece in tqdm.tqdm(data[:START_INDEX], total=START_INDEX): # 最初〜START_INDEX
-    # for temp_piece in tqdm.tqdm(data[START_INDEX:], total=len(data) - START_INDEX): # START_INDEX〜最後
+        # 開始位置調整
+        # for temp_piece in tqdm.tqdm(data[:START_INDEX], total=START_INDEX): # 最初〜START_INDEX
+        # for temp_piece in tqdm.tqdm(data[START_INDEX:], total=len(data) - START_INDEX): # START_INDEX〜最後
         image_id = f"{temp_piece['dataset_target']}_{temp_piece['image_id']}"
         positive_prompt = temp_piece["polished_prompt"]
         prompt = f"{instruction}\n{positive_prompt}\n"
 
-        max_retries = 3
+        max_retries = DETAIL_MASTER.RETRY.MAX_RETRIES
         retry_count = 0
         success = False
 
@@ -108,7 +125,11 @@ if __name__ == "__main__":
                     model=args.model_name, contents=prompt
                 )
                 generated_text = response.text
-                print(generated_text)
+                if generated_text is None:
+                    finish_reason = response.candidates[0].finish_reason if response.candidates else "no candidates"
+                    print(f"[WARN] response.text is None for {image_id} (finish_reason={finish_reason})")
+                else:
+                    print(generated_text)
 
                 # Update if exists, otherwise append.
                 target_item = next((item for item in new_data if item["image_id"] == image_id), None)
@@ -132,6 +153,8 @@ if __name__ == "__main__":
                         f"({valid_image_count}/{total_count})\n"
                     )
                     slack_service.send_message(message=progress_message, thread_ts=slack_message_ts_start)
+                    with open(args.output_json, "w", encoding="utf-8") as f:
+                        json.dump(new_data, f, ensure_ascii=False, indent=4)
 
             except Exception as e:
                 # retry: 503（Service Unavailable）
@@ -156,7 +179,7 @@ if __name__ == "__main__":
             #     continue
 
     with open(args.output_json, "w", encoding="utf-8") as f:
-            json.dump(new_data, f, ensure_ascii=False, indent=4)
+        json.dump(new_data, f, ensure_ascii=False, indent=4)
 
     # notify end
     message = build_image_generation_complete_message(args.model_name)
